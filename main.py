@@ -7,7 +7,10 @@
 
 """
 
+import py_compile
+py_compile.compile("header.py")
 from header import *
+py_compile.compile("dataHandling.py")
 from dataHandling import *
 
 # Command Line Arguments
