@@ -19,7 +19,7 @@ from dataHandling import *
 ############################################################################################################################################
 ap = argparse.ArgumentParser(description='command line inputs')
 ap.add_argument('-time', '--time',default=10,help='the simulation timestamp',type=int)
-ap.add_argument('-viz', '--time', help='the simulation timestamp', type=int)
+ap.add_argument('-viz', '--viz',default=None,help='visualisation setting', type=str)
 args = vars(ap.parse_args())
 
 # Working script
@@ -29,12 +29,21 @@ if __name__ == "__main__":
     testDataDir = "./testData/"
 
     # read in the Data and extract into a np.array
-    dens        = loadObj(testDataDir + "rho_10")
+    dens        = loadObj(testDataDir + "rho_{}".format(args['time']))
 
     # take a slice through (x,y=0,z)
-    dens = dens[:,0,:]
+    dens    = dens[:,0,:]
+    s       = np.log(dens / dens.mean())
 
-    if args['viz'] is not None:
+    # just a quick check of the field
+    if args['viz'] == "field":
         plt.figure(dpi=200)
-        plt.imshow(dens,cmap=plt.cm.plasma)
+        plt.imshow(s,cmap=plt.cm.plasma)
+        plt.show()
+
+    s_mask = s > s.max()*0.5
+
+    if args['viz'] == "mask":
+        plt.figure(dpi=200)
+        plt.imshow(s_mask)
         plt.show()
