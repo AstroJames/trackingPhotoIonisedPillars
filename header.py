@@ -1,3 +1,13 @@
+""""
+
+    Title:          Pillar Tracking at a Photoionised Mixing Layer
+    Notes:          the dependencies
+    Author:         James Beattie & contributions from Shyam Menon
+    First Created:  16 / Jan / 2020
+
+"""
+
+
 ############################################################################################################################################
 # Data handling
 import os
