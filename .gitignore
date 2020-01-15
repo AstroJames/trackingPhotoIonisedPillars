@@ -127,3 +127,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# test Data
+Tgas*
+vx*
+vy*
+vz*
+rho_11*
