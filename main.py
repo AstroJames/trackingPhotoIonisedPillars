@@ -7,8 +7,7 @@
 
 """
 
-import header
-reload(header)
+from header import *
 from dataHandling import *
 
 # Command Line Arguments
@@ -22,4 +21,4 @@ args = vars(ap.parse_args())
 if __name__ == "__main__":
 
     testDataDir = "./testData/"
-    dens        = load_obj("rho_10")
+    dens        = loadObj(testDataDir + "rho_10")
