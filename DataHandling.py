@@ -7,7 +7,7 @@
 
 """
 
-def save_obj(obj, name):
+def saveObj(obj, name):
     """
     Save a pickle object.
 
@@ -23,7 +23,7 @@ def save_obj(obj, name):
         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
 
-def load_obj(name):
+def loadObj(name):
     """
     Load a pickle object.
 

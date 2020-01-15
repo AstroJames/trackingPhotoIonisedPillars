@@ -9,10 +9,17 @@
 
 import header
 reload(header)
+from dataHandling import *
 
 # Command Line Arguments
 ############################################################################################################################################
+ap = argparse.ArgumentParser(description='command line inputs')
+ap.add_argument('-time', '--time', help='the simulation timestamp', type=int)
+args = vars(ap.parse_args())
 
-
-
+# Working script
 ############################################################################################################################################
+if __name__ == "__main__":
+
+    testDataDir = "./testData/"
+    dens        = load_obj("rho_10")
