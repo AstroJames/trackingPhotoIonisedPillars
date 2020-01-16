@@ -94,7 +94,7 @@ if __name__ == "__main__":
     centerX         = []
     centerY         = []
     tIter           = 0             # the time iteration value
-    disTol          = 5             # the tolerance in pixel values for tracking centroids across time
+    minDisTol       = 5            # the tolerance in pixel values for tracking centroids across time
 
     for time in times:
         # read in the Data and extract into a np.array
@@ -178,6 +178,7 @@ if __name__ == "__main__":
         regionCounter = 0   # initialise a region counter
 
         # for each disjoint region (i.e. pillar)
+        possibleKeys = globaluniqueID.copy()
         for region in measure.regionprops(allLabels):
 
             # skip small regions
@@ -206,42 +207,41 @@ if __name__ == "__main__":
             # This is where we need to give it an ID
             # Add region to the dictionary on the first iteration
 
-
+            euclideanDis = []
             addState = 0    # initialise an on / off state for adding new keys
             if tIter == 0:
                 globaluniqueID[str(regionCounter)] = (centroidX,centroidY)
-                ax.text(centroidX,centroidY,str(regionCounter))
+                ax.text(centroidX,centroidY,str(regionCounter)) # add a number annotation
             else:
-                for key in globaluniqueID.keys():
+                for key in possibleKeys.keys():
 
                     centroidXOld, centroidYOld = globaluniqueID[key]
-                    # test to see if the centroid is to any of the previous centroids
-                    if np.hypot( centroidX - centroidXOld,centroidY - centroidYOld) < disTol:
+                    # calculate the Euclidean distance between each centroid pair
+                    euclideanDis.append(np.hypot( centroidX - centroidXOld,centroidY - centroidYOld))
 
-                        # if it is, then store the value of that centroid in the old key
-                        globaluniqueID[key] = (centroidX,centroidY)
-                        ax.text(centroidX,centroidY,key)
+                keysAsInts  = map(int,possibleKeys.keys())
+                minDis      = min(np.array(euclideanDis))
+                minKey      = str(keysAsInts[euclideanDis.index(min(euclideanDis))])
 
-                        # store the key to compare for removing region keys that no
-                        # longer exist
-                        localuniqueID[key] = None
+                if minDis < minDisTol:
+                    # if it is, then store the value of that centroid in the old key
+                    globaluniqueID[minKey] = (centroidX,centroidY)
+                    ax.text(centroidX,centroidY,minKey)
+                    possibleKeys.pop(minKey,None)
+                    localuniqueID[minKey] = None
+                    print possibleKeys.keys()
+                else:
+                    addState = 1
 
-                        # and stop searching
-                        break
+                # if you get to the end of the keys with nothing satisfying then we
+                # will need to add a new key
 
-                    # if you get to the end of the keys with nothing satisfying then we
-                    # will need to add a new key
-                    if key == globaluniqueID.keys()[-1]:
-                        addState = 1
 
-                # Now remove keys that are NOT in the local
-                localIDSet  = set(map(int,localuniqueID.keys()))
-                globalIDSet = set(map(int,globaluniqueID.keys()))
-
-                difSet = globalIDSet.difference(localIDSet)
-                if difSet != set():
-                    for element in difSet:
-                        globaluniqueID.pop(str(element),None)
+            # Now remove keys that are NOT in the local
+            # difSet = set(map(int,possibleKeys.keys()))
+            # if difSet != set():
+            #     for element in difSet:
+            #         globaluniqueID.pop(str(element),None)
 
                 if addState != 0:
 
