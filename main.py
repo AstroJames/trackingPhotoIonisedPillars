@@ -177,7 +177,7 @@ if __name__ == "__main__":
         localuniqueID = {}  # initialise a unique ID for each centroid, for this timestep
         regionCounter = 0   # initialise a region counter
 
-
+        # for each disjoint region (i.e. pillar)
         for region in measure.regionprops(allLabels):
 
             # skip small regions
@@ -210,14 +210,23 @@ if __name__ == "__main__":
             addState = 0    # initialise an on / off state for adding new keys
             if tIter == 0:
                 globaluniqueID[str(regionCounter)] = (centroidX,centroidY)
+                ax.text(centroidX,centroidY,str(regionCounter))
             else:
                 for key in globaluniqueID.keys():
+
                     centroidXOld, centroidYOld = globaluniqueID[key]
                     # test to see if the centroid is to any of the previous centroids
                     if np.hypot( centroidX - centroidXOld,centroidY - centroidYOld) < disTol:
+
                         # if it is, then store the value of that centroid in the old key
-                        # and stop searching
                         globaluniqueID[key] = (centroidX,centroidY)
+                        ax.text(centroidX,centroidY,key)
+
+                        # store the key to compare for removing region keys that no
+                        # longer exist
+                        localuniqueID[key] = None
+
+                        # and stop searching
                         break
 
                     # if you get to the end of the keys with nothing satisfying then we
@@ -225,17 +234,26 @@ if __name__ == "__main__":
                     if key == globaluniqueID.keys()[-1]:
                         addState = 1
 
+                # Now remove keys that are NOT in the local
+                localIDSet  = set(map(int,localuniqueID.keys()))
+                globalIDSet = set(map(int,globaluniqueID.keys()))
+
+                difSet = globalIDSet.difference(localIDSet)
+                if difSet != set():
+                    for element in difSet:
+                        globaluniqueID.pop(str(element),None)
+
                 if addState != 0:
 
-
-
-
-
-
+                    # create a new key that is one larger than the previous max
+                    newKey                      = max(map(int,globaluniqueID.keys())) + 1
+                    globaluniqueID[str(newKey)] = (centroidX,centroidY)
+                    ax.text(centroidX,centroidY,newKey)
 
             regionCounter +=1
 
         plt.tight_layout()
         #plt.savefig("Plots/rho_{}.png".format(time))
-        plt.close()
+        plt.show()
+        print("Iteration: {} complete".format(tIter))
         tIter += 1
