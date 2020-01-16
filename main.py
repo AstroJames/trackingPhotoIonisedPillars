@@ -90,7 +90,7 @@ if __name__ == "__main__":
     # data test directory
     testDataDir     = "./testData/"
     globaluniqueID  = {}
-    times           = np.arange(10,12)
+    times           = np.arange(10,100)
     centerX         = []
     centerY         = []
     tIter           = 0             # the time iteration value
@@ -211,7 +211,7 @@ if __name__ == "__main__":
             addState = 0    # initialise an on / off state for adding new keys
             if tIter == 0:
                 globaluniqueID[str(regionCounter)] = (centroidX,centroidY)
-                ax.text(centroidX,centroidY,str(regionCounter)) # add a number annotation
+                ax.text(centroidX,centroidY,str(regionCounter),fontsize=16) # add a number annotation
             else:
                 for key in possibleKeys.keys():
 
@@ -226,7 +226,7 @@ if __name__ == "__main__":
                 if minDis < minDisTol:
                     # if it is, then store the value of that centroid in the old key
                     globaluniqueID[minKey] = (centroidX,centroidY)
-                    ax.text(centroidX,centroidY,minKey)
+                    ax.text(centroidX,centroidY,minKey,fontsize=16)
                     possibleKeys.pop(minKey,None)
                     localuniqueID[minKey] = None
                     print possibleKeys.keys()
@@ -236,24 +236,25 @@ if __name__ == "__main__":
                 # if you get to the end of the keys with nothing satisfying then we
                 # will need to add a new key
 
-
-            # Now remove keys that are NOT in the local
-            # difSet = set(map(int,possibleKeys.keys()))
-            # if difSet != set():
-            #     for element in difSet:
-            #         globaluniqueID.pop(str(element),None)
-
-                if addState != 0:
+                # a switch that makes a new ID be incorporated into a set.
+                if addState == 1:
 
                     # create a new key that is one larger than the previous max
                     newKey                      = max(map(int,globaluniqueID.keys())) + 1
                     globaluniqueID[str(newKey)] = (centroidX,centroidY)
-                    ax.text(centroidX,centroidY,newKey)
+                    ax.text(centroidX,centroidY,newKey,fontsize=16)
 
             regionCounter +=1
 
+        # Now remove keys that are NOT in the local
+        difSet = set(map(int,possibleKeys.keys()))
+        if difSet != set():
+            for element in difSet:
+                globaluniqueID.pop(str(element),None)
+
+
         plt.tight_layout()
-        #plt.savefig("Plots/rho_{}.png".format(time))
-        plt.show()
+        plt.savefig("Plots/rho_{}.png".format(time))
+        plt.close()
         print("Iteration: {} complete".format(tIter))
         tIter += 1
