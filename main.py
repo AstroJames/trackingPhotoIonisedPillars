@@ -15,7 +15,11 @@ from header import *
 py_compile.compile("dataHandling.py")
 from dataHandling import *
 from skimage.transform import hough_line, hough_line_peaks
+from skimage.morphology import square, opening
+from skimage import filters, measure
 import matplotlib.patches as patches
+import matplotlib.patches as mpatches
+from skimage.color import label2rgb
 
 # Command Line Arguments
 ############################################################################################################################################
@@ -73,60 +77,165 @@ def sampleHough(xValues,yValues):
 
     return x, y
 
+def labelCreator(image):
+    # Some pre-processing of the labels
+    openfactor      = 10;
+    image_open      = opening(image,square(openfactor))
+    allLabels       = measure.label(image)
+    return allLabels
+
 # Working script
 ############################################################################################################################################
 if __name__ == "__main__":
     # data test directory
-    testDataDir = "./testData/"
+    testDataDir     = "./testData/"
+    globaluniqueID  = {}
+    times           = np.arange(10,12)
+    centerX         = []
+    centerY         = []
+    tIter           = 0             # the time iteration value
+    disTol          = 5             # the tolerance in pixel values for tracking centroids across time
 
-    # read in the Data and extract into a np.array
-    dens        = loadObj(testDataDir + "rho_{}".format(args['time']))
+    for time in times:
+        # read in the Data and extract into a np.array
+        dens        = loadObj(testDataDir + "rho_{}".format(time))
 
-    # take a slice through (x,y=0,z)
-    dens    = dens[:,0,:]
-    s       = np.log(dens / dens.mean())
+        # take a slice through (x,y,z=0)
+        dens    = dens[:,0,:]
+        s       = np.log(dens / dens.mean())
 
-    # just a quick check of the field
-    if args['viz'] == "field":
-        f, ax = plt.subplots(dpi=200)
-        ax.imshow(s,cmap=plt.cm.plasma)
+        # just a quick check of the field
+        if args['viz'] == "field":
+            f, ax = plt.subplots(dpi=200)
+            ax.imshow(s,cmap=plt.cm.plasma)
+            ax.set_axis_off()
+            plt.show()
+
+        # Create a mask on s for detecting the ionisation front
+        s_mask = s > s.max()*0.5
+
+        # run a hough transform on the masked density data
+        eps = 0.05 # the d\theta around a vertical line approximation for the ion. front.
+        # create a sample of test angles close to a vertical line
+        tested_angles = np.linspace(np.pi + eps, np.pi - eps, 90)
+
+        # run the Hough transform
+        origin          = np.array((0, s_mask.shape[1]))            # define the origin coordinate
+        h, theta, d     = hough_line(s_mask, theta=tested_angles)   # define the H. transform
+
+        # pick the most dominant line from the H. transform
+        _, angle, dist  = hough_line_peaks(h, theta, d)             # extract param. values
+        y0, y1          = (dist[0] - origin * np.cos(angle[0])) / np.sin(angle[0])
+
+        # pick out the cooridinates in the density field from the line and create a window
+        x , y       = sampleHough(origin,[y0, y1])
+        windowSize  = 30
+        xMin        = x - windowSize
+        xMax        = x + windowSize
+
+        # check the boundary has been detected
+        if args['viz'] == "mask":
+            f, ax   = plt.subplots(dpi=200)
+            ax.imshow(s,cmap=plt.cm.plasma)
+            rect = patches.Rectangle((xMin[0],0),xMax[0] - xMin[0], s.shape[0],linewidth=1,edgecolor='r',facecolor='b',alpha=0.5);
+            ax.add_patch(rect);
+            ax.plot(x,y, '-b')
+            ax.set_ylim((s_mask.shape[0], 0))
+            ax.set_axis_off()
+            plt.show()
+
+
+        # Now we have isolated the mixing layer so we can pick out the region in our
+        # simulation to extract the pillars
+        x0  = int(xMin[0])
+        x1  = int(xMax[0])
+        y0  = int(y[0])
+        y1  = int(y[-1])
+
+        # filter on the densities within the small regions and then create a threshold
+        sML      = s[:,x0:x1]
+        sML_mask = sML > sML.max()*0.5
+        sML_mask = np.pad(sML_mask,((0,0),(x0,s.shape[1]-x1)),mode='constant')
+        allLabels = labelCreator(sML_mask)
+
+        # initialise measurement arrays
+        regionPerimeter    = [];
+        regionArea         = [];
+
+        # initialise plot
+        if tIter == 0:
+            vMax = s.max()
+            vMin = s.min()
+
+        f,ax = plt.subplots(dpi=200)
+        plot = ax.imshow(s,cmap=plt.cm.plasma,vmin=vMin,vmax=vMax)
         ax.set_axis_off()
-        plt.show()
+        cb = plt.colorbar(plot)
+        cb.set_label(r"$s = \ln(\rho/\rho_0)$",fontsize=16)
 
-    # Create a mask on s for detecting the ionisation front
-    s_mask = s > s.max()*0.5
 
-    # run a hough transform on the masked density data
-    eps = 0.05 # the d\theta around a vertical line approximation for the ion. front.
-    # create a sample of test angles close to a vertical line
-    tested_angles = np.linspace(np.pi + eps, np.pi - eps, 90)
+        localuniqueID = {}  # initialise a unique ID for each centroid, for this timestep
+        regionCounter = 0   # initialise a region counter
 
-    # run the Hough transform
-    origin          = np.array((0, s_mask.shape[1]))            # define the origin coordinate
-    h, theta, d     = hough_line(s_mask, theta=tested_angles)   # define the H. transform
 
-    # pick the most dominant line from the H. transform
-    _, angle, dist  = hough_line_peaks(h, theta, d)             # extract param. values
-    y0, y1          = (dist[0] - origin * np.cos(angle[0])) / np.sin(angle[0])
+        for region in measure.regionprops(allLabels):
 
-    # pick out the cooridinates in the density field from the line and create a window
-    x , y       = sampleHough(origin,[y0, y1])
-    windowSize  = 30
-    xMin        = x - windowSize
-    xMax        = x + windowSize
+            # skip small regions
+            if region.area <= 3:
+                continue
 
-    # check the boundary has been detected
-    if args['viz'] == "mask":
-        f, ax   = plt.subplots(dpi=200)
-        ax.imshow(s,cmap=plt.cm.plasma)
-        rect = patches.Rectangle((xMin[0],y[0]),xMax[0] - xMin[0], y[-1]-y[0],linewidth=1,edgecolor='r',facecolor='b',alpha=0.5);
-        ax.add_patch(rect);
-        ax.plot(x,y, '-b')
-        #ax.plot(xMin,y, '--r')
-        #ax.plot(xMax,y, '--r')
-        ax.set_ylim((s_mask.shape[0], 0))
-        ax.set_axis_off()
-        plt.show()
+            # Add to the area vector.
+            regionArea.append(region.area)
 
-    # Now we have isolated the mixing layer so we can
-    sMixingLayer =
+            # Add to the perimeter vector.
+            regionPerimeter.append(region.perimeter)
+
+            # draw rectangle around segmented high-density regions
+            minr, minc, maxr, maxc = region.bbox
+            rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr,fill=False, edgecolor='red', linewidth=2)
+            ax.add_patch(rect)
+
+            # calculate the centroids
+            centroidX = maxc - (maxc - minc)/2.
+            centroidY = maxr - (maxr - minr)/2.
+
+            centerX.append(centroidX)
+            centerY.append(centroidY)
+            ax.scatter(centerX,centerY,c='b',s=1,marker='.')
+
+            # This is where we need to give it an ID
+            # Add region to the dictionary on the first iteration
+
+
+            addState = 0    # initialise an on / off state for adding new keys
+            if tIter == 0:
+                globaluniqueID[str(regionCounter)] = (centroidX,centroidY)
+            else:
+                for key in globaluniqueID.keys():
+                    centroidXOld, centroidYOld = globaluniqueID[key]
+                    # test to see if the centroid is to any of the previous centroids
+                    if np.hypot( centroidX - centroidXOld,centroidY - centroidYOld) < disTol:
+                        # if it is, then store the value of that centroid in the old key
+                        # and stop searching
+                        globaluniqueID[key] = (centroidX,centroidY)
+                        break
+
+                    # if you get to the end of the keys with nothing satisfying then we
+                    # will need to add a new key
+                    if key == globaluniqueID.keys()[-1]:
+                        addState = 1
+
+                if addState != 0:
+
+
+
+
+
+
+
+            regionCounter +=1
+
+        plt.tight_layout()
+        #plt.savefig("Plots/rho_{}.png".format(time))
+        plt.close()
+        tIter += 1
