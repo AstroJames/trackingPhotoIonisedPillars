@@ -79,7 +79,7 @@ def sampleHough(xValues,yValues):
 
 def labelCreator(image):
     # Some pre-processing of the labels
-    openfactor      = 10;
+    openfactor      = 5;
     image_open      = opening(image,square(openfactor))
     allLabels       = measure.label(image)
     return allLabels
@@ -90,11 +90,12 @@ if __name__ == "__main__":
     # data test directory
     testDataDir     = "./testData/"
     globaluniqueID  = {}
-    times           = np.arange(10,100)
+    times           = np.arange(10,11)
     centerX         = []
     centerY         = []
     tIter           = 0             # the time iteration value
-    minDisTol       = 5            # the tolerance in pixel values for tracking centroids across time
+    minDisTol       = 10            # the tolerance in pixel values for tracking centroids across time
+    idsPerTimeStep  = {}
 
     for time in times:
         # read in the Data and extract into a np.array
@@ -124,7 +125,7 @@ if __name__ == "__main__":
         h, theta, d     = hough_line(s_mask, theta=tested_angles)   # define the H. transform
 
         # pick the most dominant line from the H. transform
-        _, angle, dist  = hough_line_peaks(h, theta, d)             # extract param. values
+        hspace, angle, dist  = hough_line_peaks(h, theta, d)             # extract param. values
         y0, y1          = (dist[0] - origin * np.cos(angle[0])) / np.sin(angle[0])
 
         # pick out the cooridinates in the density field from the line and create a window
@@ -177,8 +178,11 @@ if __name__ == "__main__":
         localuniqueID = {}  # initialise a unique ID for each centroid, for this timestep
         regionCounter = 0   # initialise a region counter
 
-        # for each disjoint region (i.e. pillar)
+        # initialise a dictionary for identfiying what IDs have been used up
+        # through the region iterations
         possibleKeys = globaluniqueID.copy()
+
+        # for each disjoint region (i.e. pillar)
         for region in measure.regionprops(allLabels):
 
             # skip small regions
@@ -207,12 +211,20 @@ if __name__ == "__main__":
             # This is where we need to give it an ID
             # Add region to the dictionary on the first iteration
 
-            euclideanDis = []
-            addState = 0    # initialise an on / off state for adding new keys
+
+            euclideanDis = []   # initialise an array for storing the euclidena distances between
+                                # successive time-steps
+            addState = 0        # initialise an on / off state for adding new keys
+
+            # if we are on the first iteration just store all of the regions into a dictionary
+            # and give a unique ID
             if tIter == 0:
                 globaluniqueID[str(regionCounter)] = (centroidX,centroidY)
                 ax.text(centroidX,centroidY,str(regionCounter),fontsize=16) # add a number annotation
             else:
+                # if not the first iteration (time)
+
+                # for each of the possible keys
                 for key in possibleKeys.keys():
 
                     centroidXOld, centroidYOld = globaluniqueID[key]
@@ -226,7 +238,7 @@ if __name__ == "__main__":
                 if minDis < minDisTol:
                     # if it is, then store the value of that centroid in the old key
                     globaluniqueID[minKey] = (centroidX,centroidY)
-                    ax.text(centroidX,centroidY,minKey,fontsize=16)
+                    ax.text(centroidX,centroidY,minKey,fontsize=16) # annotate plot
                     possibleKeys.pop(minKey,None)
                     localuniqueID[minKey] = None
                     print possibleKeys.keys()
@@ -242,7 +254,7 @@ if __name__ == "__main__":
                     # create a new key that is one larger than the previous max
                     newKey                      = max(map(int,globaluniqueID.keys())) + 1
                     globaluniqueID[str(newKey)] = (centroidX,centroidY)
-                    ax.text(centroidX,centroidY,newKey,fontsize=16)
+                    ax.text(centroidX,centroidY,newKey,fontsize=16) # annotate plot
 
             regionCounter +=1
 
@@ -252,6 +264,7 @@ if __name__ == "__main__":
             for element in difSet:
                 globaluniqueID.pop(str(element),None)
 
+        finalKeys = map(int,globaluniqueID)
 
         plt.tight_layout()
         plt.savefig("Plots/rho_{}.png".format(time))
