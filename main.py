@@ -19,7 +19,6 @@ from skimage.morphology import square, opening
 from skimage import filters, measure
 import matplotlib.patches as patches
 import matplotlib.patches as mpatches
-from skimage.color import label2rgb
 
 # Command Line Arguments
 ############################################################################################################################################
@@ -94,8 +93,9 @@ if __name__ == "__main__":
     centerX         = []
     centerY         = []
     tIter           = 0             # the time iteration value
-    minDisTol       = 10            # the tolerance in pixel values for tracking centroids across time
-    idsPerTimeStep  = {}
+    minDisTol       = 10            # the tolerance in pixel values for tracking centroids across time (in pixel size)
+    idsPerTimeStep  = {}            # the dictionary for storing the IDs each time step
+    allIDs          = []            # a list of all IDs, for all time
 
     for time in times:
         # read in the Data and extract into a np.array
@@ -144,7 +144,6 @@ if __name__ == "__main__":
             ax.set_ylim((s_mask.shape[0], 0))
             ax.set_axis_off()
             plt.show()
-
 
         # Now we have isolated the mixing layer so we can pick out the region in our
         # simulation to extract the pillars
@@ -212,9 +211,9 @@ if __name__ == "__main__":
             # Add region to the dictionary on the first iteration
 
 
-            euclideanDis = []   # initialise an array for storing the euclidena distances between
-                                # successive time-steps
-            addState = 0        # initialise an on / off state for adding new keys
+            euclideanDis    = []    # initialise an array for storing the euclidena distances between
+                                    # successive time-steps
+            addState = 0            # initialise an on / off state for adding new keys
 
             # if we are on the first iteration just store all of the regions into a dictionary
             # and give a unique ID
@@ -253,6 +252,7 @@ if __name__ == "__main__":
 
                     # create a new key that is one larger than the previous max
                     newKey                      = max(map(int,globaluniqueID.keys())) + 1
+                    # add it to the global centroid dictionary
                     globaluniqueID[str(newKey)] = (centroidX,centroidY)
                     ax.text(centroidX,centroidY,newKey,fontsize=16) # annotate plot
 
@@ -264,10 +264,15 @@ if __name__ == "__main__":
             for element in difSet:
                 globaluniqueID.pop(str(element),None)
 
-        finalKeys = map(int,globaluniqueID)
+        allIDs.append(map(int,globaluniqueID.keys()))
+        idsPerTimeStep[str(time + 100)] = globaluniqueID
 
         plt.tight_layout()
         plt.savefig("Plots/rho_{}.png".format(time))
         plt.close()
         print("Iteration: {} complete".format(tIter))
         tIter += 1
+
+idsPerTimeStep["all"] = allIDs
+
+saveObj(finalKeys, name)
