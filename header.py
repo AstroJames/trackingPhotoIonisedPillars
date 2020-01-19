@@ -38,8 +38,16 @@ from matplotlib import rc, ticker, colors  # nicer text in matplotlib and custum
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import matplotlib.patheffects as PathEffects
 mpl.rcParams['text.usetex'] = True
-mpl.rcParams['text.latex.preamble'] = [r'\usepackage{amsmath}',r'\usepackage{mathrsfs}']
-rc('font', **{'family': 'DejaVu Sans'})
+mpl.rcParams['text.latex.preamble'] = [r'\usepackage{amsmath}',r'\usepackage{mathrsfs}','\usepackage{amssymb}']
+rc('font', **{'family': 'DejaVu Sans','size':16})
 rc('text', usetex=True)
+mpl.rcParams['xtick.direction'] = 'in'
+mpl.rcParams['ytick.direction'] = 'in'
 
 ############################################################################################################################################
+
+# Some global variables
+fs          = 16        # the fontsize
+labelDx     = 0.475      # the label fraction in x, in ax coordinates
+xyCoords    = 'axes fraction'
+eps         = 0.001     # for shadows on plots

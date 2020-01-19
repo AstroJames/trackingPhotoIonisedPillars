@@ -76,10 +76,9 @@ def sampleHough(xValues,yValues):
 
     return x, y
 
-def labelCreator(image):
+def labelCreator(image,openFactor):
     # Some pre-processing of the labels
-    openfactor      = 5;
-    image_open      = opening(image,square(openfactor))
+    image_open      = opening(image,square(openFactor))
     allLabels       = measure.label(image)
     return allLabels
 
@@ -87,19 +86,28 @@ def labelCreator(image):
 ############################################################################################################################################
 if __name__ == "__main__":
     # data test directory
+    dx = dy         = 0.02  #pc
+    dt              = 10    #kyr
+    Amin            = 3     #dxdy
     testDataDir     = "./testData/"
     globaluniqueID  = {}
-    times           = np.arange(10,11)
-    centerX         = []
-    centerY         = []
+    times           = np.arange(10,100) # the times to run the code on
+    centerX         = []            # the x coordiante of the centroid
+    centerY         = []            # the y coordinate of the centroid
     tIter           = 0             # the time iteration value
     minDisTol       = 10            # the tolerance in pixel values for tracking centroids across time (in pixel size)
     idsPerTimeStep  = {}            # the dictionary for storing the IDs each time step
     allIDs          = []            # a list of all IDs, for all time
+    openFactor      = 5             # the openning factor of the pixels
+    windowSize      = 30            # half the size of the window
+    statsPerTimeStep = {}
 
     for time in times:
         # read in the Data and extract into a np.array
         dens        = loadObj(testDataDir + "rho_{}".format(time))
+
+        # turn the time into the proper file dump by adding 100.
+        time        += 100
 
         # take a slice through (x,y,z=0)
         dens    = dens[:,0,:]
@@ -116,9 +124,9 @@ if __name__ == "__main__":
         s_mask = s > s.max()*0.5
 
         # run a hough transform on the masked density data
-        eps = 0.05 # the d\theta around a vertical line approximation for the ion. front.
+        dtheta = 0.05 # the d\theta around a vertical line approximation for the ion. front.
         # create a sample of test angles close to a vertical line
-        tested_angles = np.linspace(np.pi + eps, np.pi - eps, 90)
+        tested_angles = np.linspace(np.pi + dtheta, np.pi - dtheta, 90)
 
         # run the Hough transform
         origin          = np.array((0, s_mask.shape[1]))            # define the origin coordinate
@@ -130,20 +138,26 @@ if __name__ == "__main__":
 
         # pick out the cooridinates in the density field from the line and create a window
         x , y       = sampleHough(origin,[y0, y1])
-        windowSize  = 30
         xMin        = x - windowSize
         xMax        = x + windowSize
 
+
+        labelDy = 0.93
         # check the boundary has been detected
-        if args['viz'] == "mask":
-            f, ax   = plt.subplots(dpi=200)
-            ax.imshow(s,cmap=plt.cm.plasma)
-            rect = patches.Rectangle((xMin[0],0),xMax[0] - xMin[0], s.shape[0],linewidth=1,edgecolor='r',facecolor='b',alpha=0.5);
-            ax.add_patch(rect);
-            ax.plot(x,y, '-b')
-            ax.set_ylim((s_mask.shape[0], 0))
-            ax.set_axis_off()
-            plt.show()
+        f, ax   = plt.subplots(1,2,figsize=(9.2,4),dpi=200)
+        plt.subplots_adjust(left=0.00, bottom=0.05, right=0.95, top=0.95, wspace=-0.05, hspace=0.05)
+        ax[0].imshow(s_mask,cmap=plt.cm.plasma)
+        rect = patches.Rectangle((xMin[0],0),xMax[0] - xMin[0], s.shape[0],linewidth=1,edgecolor='r',facecolor='r',alpha=0.2);
+        ax[0].plot((xMin[0] + (xMax - xMin)/2.,xMin[0] + (xMax - xMin)/2.),(0,s.shape[0]), '--r',linewidth=0.5)
+        ax[0].annotate(r"$\xi = s > s_{\text{max}}/2$", xy=(labelDx,labelDy), xycoords = xyCoords,color="yellow",fontsize=fs-2)
+        ax[0].annotate(r"$(\xi \ominus \square ) \oplus \square = $" + " {}".format(openFactor*dx) + r"$\,\text{pc}$", xy=(labelDx,labelDy-0.06), xycoords = 'axes fraction',color="yellow",fontsize=fs-2)
+        ax[0].annotate(r"Hough fit", xy=(labelDx-0.45,labelDy), xycoords = xyCoords,color="blue",fontsize=fs-2)
+        ax[0].annotate(r"$\mathcal{W}_{\Delta x} = $" + " {}".format(np.round(windowSize*2*dx,1)) + r"$\,\text{pc}$", xy=(labelDx-0.45,labelDy-0.06), xycoords = xyCoords,color="red",fontsize=fs-2)
+        ax[0].annotate(r"$\mathcal{A} \geq \mathcal{A}_{\text{min}} = $" + " {}".format(np.round(Amin*dx*dy,3)) + r"$\,\text{pc}^2$", xy=(labelDx,0.03), xycoords = xyCoords,color="yellow",fontsize=fs-2)
+        ax[0].add_patch(rect);
+        ax[0].plot(x,y, '-b')
+        ax[0].set_ylim((s_mask.shape[0], 0))
+        ax[0].set_axis_off()
 
         # Now we have isolated the mixing layer so we can pick out the region in our
         # simulation to extract the pillars
@@ -153,29 +167,28 @@ if __name__ == "__main__":
         y1  = int(y[-1])
 
         # filter on the densities within the small regions and then create a threshold
-        sML      = s[:,x0:x1]
-        sML_mask = sML > sML.max()*0.5
-        sML_mask = np.pad(sML_mask,((0,0),(x0,s.shape[1]-x1)),mode='constant')
-        allLabels = labelCreator(sML_mask)
-
-        # initialise measurement arrays
-        regionPerimeter    = [];
-        regionArea         = [];
+        sML         = s[:,x0:x1]
+        sML_mask    = sML > sML.max()*0.5
+        sML_mask    = np.pad(sML_mask,((0,0),(x0,s.shape[1]-x1)),mode='constant')
+        allLabels   = labelCreator(sML_mask,openFactor)
 
         # initialise plot
         if tIter == 0:
             vMax = s.max()
             vMin = s.min()
 
-        f,ax = plt.subplots(dpi=200)
-        plot = ax.imshow(s,cmap=plt.cm.plasma,vmin=vMin,vmax=vMax)
-        ax.set_axis_off()
+        plot    = ax[1].imshow(s,cmap=plt.cm.plasma,vmin=vMin,vmax=vMax)
+        timeDt  = time*dt
+        ax[1].annotate(r"$t = ${}".format(time) + r"$dt$", xy=(labelDx + 0.275-eps,labelDy-eps), xycoords = xyCoords,color="white",fontsize=fs-2)
+        ax[1].annotate(r"$t = ${}".format(time) + r"$dt$", xy=(labelDx + 0.275,labelDy), xycoords = xyCoords,color="black",fontsize=fs-2)
+        ax[1].set_axis_off()
         cb = plt.colorbar(plot)
         cb.set_label(r"$s = \ln(\rho/\rho_0)$",fontsize=16)
 
 
-        localuniqueID = {}  # initialise a unique ID for each centroid, for this timestep
-        regionCounter = 0   # initialise a region counter
+        localuniqueID   = {}    # initialise a unique ID for each centroid, for this timestep
+        statsPerID      = {}    # initialise a dictionary for the stats, for each region
+        regionCounter   = 0     # initialise a region counter
 
         # initialise a dictionary for identfiying what IDs have been used up
         # through the region iterations
@@ -185,19 +198,35 @@ if __name__ == "__main__":
         for region in measure.regionprops(allLabels):
 
             # skip small regions
-            if region.area <= 3:
+            if region.area <= Amin:
                 continue
-
-            # Add to the area vector.
-            regionArea.append(region.area)
-
-            # Add to the perimeter vector.
-            regionPerimeter.append(region.perimeter)
 
             # draw rectangle around segmented high-density regions
             minr, minc, maxr, maxc = region.bbox
             rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr,fill=False, edgecolor='red', linewidth=2)
-            ax.add_patch(rect)
+
+            ########################################################
+            # calculate everything from the region
+            ########################################################
+
+            # select the region in the density field
+            regionDens      = s[minc:maxc,minr:maxr]
+            # calculate the dispersion
+            densDispersion  = np.var(regionDens)
+            # calculate the total mass
+            mass            = sum(sum(regionDens))*dx*dy
+            # area in parsecs.
+            area            = region.area*dx*dy
+            # perimeter in parsecs
+            per             = region.perimeter*dx
+            """
+            TODO:
+            """
+            # calculate the velocity dispersion
+            # calculate the forcing parameter, b
+
+
+            ax[1].add_patch(rect)
 
             # calculate the centroids
             centroidX = maxc - (maxc - minc)/2.
@@ -205,7 +234,7 @@ if __name__ == "__main__":
 
             centerX.append(centroidX)
             centerY.append(centroidY)
-            ax.scatter(centerX,centerY,c='b',s=1,marker='.')
+            ax[1].scatter(centerX,centerY,c='b',s=1,marker='.')
 
             # This is where we need to give it an ID
             # Add region to the dictionary on the first iteration
@@ -218,29 +247,36 @@ if __name__ == "__main__":
             # if we are on the first iteration just store all of the regions into a dictionary
             # and give a unique ID
             if tIter == 0:
-                globaluniqueID[str(regionCounter)] = (centroidX,centroidY)
-                ax.text(centroidX,centroidY,str(regionCounter),fontsize=16) # add a number annotation
+                globaluniqueID[regionCounter]  = {'x':centroidX,'y':centroidY}
+                statsPerID[regionCounter]      = {'mass':mass,'svar':densDispersion,
+                                                       'area':area,'per':per}
+                ax[1].text(centroidX,centroidY,str(regionCounter),fontsize=16) # add a number annotation
             else:
                 # if not the first iteration (time)
 
                 # for each of the possible keys
                 for key in possibleKeys.keys():
 
-                    centroidXOld, centroidYOld = globaluniqueID[key]
+                    centroidXOld = globaluniqueID[key]['x']
+                    centroidYOld = globaluniqueID[key]['y']
                     # calculate the Euclidean distance between each centroid pair
                     euclideanDis.append(np.hypot( centroidX - centroidXOld,centroidY - centroidYOld))
 
                 keysAsInts  = map(int,possibleKeys.keys())
+                # if all of the possible regions are still there then move to the next iteration
+                if keysAsInts == []:
+                    continue
                 minDis      = min(np.array(euclideanDis))
-                minKey      = str(keysAsInts[euclideanDis.index(min(euclideanDis))])
-
+                minKey      = keysAsInts[euclideanDis.index(min(euclideanDis))]
                 if minDis < minDisTol:
                     # if it is, then store the value of that centroid in the old key
-                    globaluniqueID[minKey] = (centroidX,centroidY)
-                    ax.text(centroidX,centroidY,minKey,fontsize=16) # annotate plot
+                    globaluniqueID[minKey]  = {'x':centroidX,'y':centroidY}
+                    statsPerID[minKey]      = {'mass':mass,'svar':densDispersion,
+                                               'area':area,'per':per}
+                    ax[1].text(centroidX,centroidY,minKey,fontsize=16) # annotate plot
                     possibleKeys.pop(minKey,None)
                     localuniqueID[minKey] = None
-                    print possibleKeys.keys()
+                    #print possibleKeys.keys()
                 else:
                     addState = 1
 
@@ -251,10 +287,12 @@ if __name__ == "__main__":
                 if addState == 1:
 
                     # create a new key that is one larger than the previous max
-                    newKey                      = max(map(int,globaluniqueID.keys())) + 1
+                    newKey                 = max(map(int,globaluniqueID.keys())) + 1
                     # add it to the global centroid dictionary
-                    globaluniqueID[str(newKey)] = (centroidX,centroidY)
-                    ax.text(centroidX,centroidY,newKey,fontsize=16) # annotate plot
+                    globaluniqueID[newKey] = {'x':centroidX,'y':centroidY}
+                    statsPerID[newKey]     = {'mass':mass,'svar':densDispersion,
+                                               'area':area,'per':per}
+                    ax[1].text(centroidX,centroidY,newKey,fontsize=16) # annotate plot
 
             regionCounter +=1
 
@@ -262,12 +300,18 @@ if __name__ == "__main__":
         difSet = set(map(int,possibleKeys.keys()))
         if difSet != set():
             for element in difSet:
-                globaluniqueID.pop(str(element),None)
+                globaluniqueID.pop(element,None)
 
-        allIDs.append(map(int,globaluniqueID.keys()))
-        idsPerTimeStep[str(time + 100)] = globaluniqueID
+        # Need to copy the dictionary otherwise it updates per time-step
+        updateGlobal            =  globaluniqueID.copy()
+        idsPerTimeStep[time]    = updateGlobal
 
-        plt.tight_layout()
+        # Need to copy the dictionary otherwise it updates per time-step
+        updateStats             = statsPerID.copy()
+        allIDs                  += map(int,globaluniqueID.keys())
+        statsPerTimeStep[time]  = updateStats
+
+        #plt.tight_layout()
         plt.savefig("Plots/rho_{}.png".format(time))
         plt.close()
         print("Iteration: {} complete".format(tIter))
@@ -275,4 +319,5 @@ if __name__ == "__main__":
 
 idsPerTimeStep["all"] = allIDs
 
-saveObj(finalKeys, name)
+saveObj(idsPerTimeStep, "pillarIDs")
+saveObj(statsPerTimeStep, "pillarStatistics")
