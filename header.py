@@ -48,6 +48,7 @@ mpl.rcParams['ytick.direction'] = 'in'
 
 # Some global variables
 fs          = 16        # the fontsize
-labelDx     = 0.475      # the label fraction in x, in ax coordinates
+labelDx     = 0.475     # the label fraction in x, in ax coordinates
+labelDy     = 0.93      # the label fraction in y, in ax coordinates
 xyCoords    = 'axes fraction'
 eps         = 0.001     # for shadows on plots
