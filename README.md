@@ -7,11 +7,11 @@ We rely on computer vision techniques, from `skimage`, like the Hough transform,
 
 ## Statistics we intend to extract from each pillar
 
-> lifetime
-> mass
-> log density dispersion
-> area
-> perimeter
-> rms turbulent Mach number
-> turbulent driving parameter
-> star formation potential
+* lifetime
+* mass
+* log density dispersion
+* area
+* perimeter
+* rms turbulent Mach number
+* turbulent driving parameter
+* star formation potential
