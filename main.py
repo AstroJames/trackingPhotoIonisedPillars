@@ -14,6 +14,9 @@ py_compile.compile("header.py")
 from header import *
 py_compile.compile("dataHandling.py")
 from dataHandling import *
+py_compile.compile("ReferenceUnits.py")
+from ReferenceUnits import *
+from PhysicalConstantsCGS import *
 from skimage.transform import hough_line, hough_line_peaks
 from skimage.morphology import square, opening
 from skimage import filters, measure
@@ -23,23 +26,39 @@ import matplotlib.patches as mpatches
 # Command Line Arguments
 ############################################################################################################################################
 ap = argparse.ArgumentParser(description='command line inputs')
-ap.add_argument('-time', '--time',default=10,help='the simulation timestamp',type=int)
+ap.add_argument('-tend', '--tend',default=11,help='the tend simulation timestamp',type=int)
 ap.add_argument('-viz', '--viz',default=None,help='visualisation setting', type=str)
 ap.add_argument('-write','--write',default=False,help='an argument for writing or not writing pickle files',type=bool)
 ap.add_argument('-vel','--vel',default=False,help='an argument for loading in the velocity',type=bool)
 ap.add_argument('-clear','--clear',default=False,help='clear all of the old plotting files',type=bool)
 args = vars(ap.parse_args())
 
+# Command Examples
+############################################################################################################################################
+"""
+#
+run main -tend 100 -write True -clear True -vel True
+
+"""
+
 # Functions
 ############################################################################################################################################
 
 def sampleHough(xValues,yValues):
     """
-    Extract density field coordinates from the most
-    dominant line in the Hough transform
+    DESCRIPTION:
+
+
+
+    INPUT:
+
+
+
+    OUTPUT:
 
     """
 
+    print("Extracting the most dominant line from the Hough transform")
     # x values
     x0 = xValues[0]
     x1 = xValues[1]
@@ -80,40 +99,82 @@ def sampleHough(xValues,yValues):
     return x, y
 
 def labelCreator(image,openFactor):
+    """
+    DESCRIPTION:
+
+
+
+    INPUT:
+
+
+
+    OUTPUT:
+
+    """
+
     # Some pre-processing of the labels
     image_open      = opening(image,square(openFactor))
     allLabels       = measure.label(image)
     return allLabels
 
 def get_cmap(n, name='hsv'):
-    '''Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
-    RGB color; the keyword argument name must be a standard mpl colormap name.'''
+    """
+    Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
+    RGB color; the keyword argument name must be a standard mpl colormap name.
+    """
+
     return plt.cm.get_cmap(name, n)
 
 def computeVelocity(dens,time):
-        # construct the magnitude of v field
-        vx = loadObj(testDataDir + "vx_{}".format(time))
-        vy = loadObj(testDataDir + "vy_{}".format(time))
-        vz = loadObj(testDataDir + "vz_{}".format(time))
+    """
+    DESCRIPTION:
 
-        # calculate the centre of mass velocity vector
-        vx_cm = sum(vx * dens) / sum(dens)
-        vy_cm = sum(vy * dens) / sum(dens)
-        vz_cm = sum(vz * dens) / sum(dens)
 
-        # construct the velocity, v_turb, which is the bulk
-        # velocity minus the center of mass velocity
-        vx_turb = vx - vx_cm
-        vy_turb = vy - vy_cm
-        vz_turb = vz - vz_cm
 
-        # construct the magnitude of v
-        v = np.sqrt(vx_turb**2 + vy_turb**2 + vz_turb**2)
-        del vx, vy, vz, vx_turb, vy_turb, vz_turb
+    INPUT:
 
-        return v
+
+
+    OUTPUT:
+
+    """
+    print("Computing the turbulent component of the velocity field")
+    # construct the magnitude of v field
+    vx = loadObj(testDataDir + "vx_{}".format(time)) * unit_Velocity # cm /s
+    vy = loadObj(testDataDir + "vy_{}".format(time)) * unit_Velocity # cm /s
+    vz = loadObj(testDataDir + "vz_{}".format(time)) * unit_Velocity # cm /s
+
+    # calculate the centre of mass velocity vector
+    vx_cm = sum(vx * dens) / sum(dens)
+    vy_cm = sum(vy * dens) / sum(dens)
+    vz_cm = sum(vz * dens) / sum(dens)
+
+    # construct the velocity, v_turb, which is the bulk
+    # velocity minus the center of mass velocity
+    vx_turb = vx - vx_cm
+    vy_turb = vy - vy_cm
+    vz_turb = vz - vz_cm
+
+    # construct the magnitude of v
+    v = np.sqrt(vx_turb**2 + vy_turb**2 + vz_turb**2)
+    del vx, vy, vz, vx_turb, vy_turb, vz_turb
+
+    return v
 
 def houghTransform(s,sThreshold):
+    """
+    DESCRIPTION:
+
+
+
+    INPUT:
+
+
+
+    OUTPUT:
+
+    """
+    print("Calculating the Hough Transform")
     # Create a mask on s for detecting the ionisation front
     sMask = s > s.max()*sThreshold
 
@@ -135,6 +196,21 @@ def houghTransform(s,sThreshold):
     xMin        = x - windowSize
     xMax        = x + windowSize
 
+    # Just taking a single value at the for the window
+    xMin = xMin[0]
+    xMax = xMax[0]
+
+    # Make sure the window size isn't larger than the actual data domain
+    if xMin < 0:
+        xMin = 0
+    elif xMin > sMask.shape[0]-1:
+        xMin = sMask.shape[0]-1
+    # and for xMax too
+    if xMax < 0:
+        xMax = 0
+    elif xMax > sMask.shape[0]-1:
+        xMax = sMask.shape[0] - 1
+
     return x, y, xMin, xMax, sMask
 
 # Working script
@@ -147,15 +223,15 @@ if __name__ == "__main__":
         os.system("rm ./Plots/*")
 
     # data test directory
-    dx = dy             = 0.02  # pc
+    dx = dy = dz        = 0.02  # pc
     dt                  = 10    # kyr
-    Amin                = 15    # dxdy
+    Amin                = 5     # dxdy
     cs                  = 0.28  # km /s, sound-speed for the neutral gas
     testDataDir         = "/Volumes/JamesBe/pillarTracking/testData/"
     writeDir            = "/Users/jamesbeattie/Documents/Research/2020/pillarTracking/PythonScripts/trackingPhotoIonisedPillars/"
     sThreshold          = 0.5   # density threshold
     globaluniqueID      = {}    # initalise the global ID dictionary
-    times               = np.arange(10,11)     # the times to run the code on
+    times               = np.arange(10,args['tend'])     # the times to run the code on
     timesArr            = []                   # a list for storing the different times for plotting
     centerX             = []            # the x coordiante of the centroid
     centerY             = []            # the y coordinate of the centroid
@@ -163,8 +239,8 @@ if __name__ == "__main__":
     minDisTol           = 5             # the tolerance in pixel values for tracking centroids across time (in pixel size)
     idsPerTimeStep      = {}            # the dictionary for storing the IDs each time step
     allIDs              = []            # a list of all IDs, for all time
-    openFactor          = 5             # the openning factor of the pixels
-    windowSize          = 30            # half the size of the window
+    openFactor          = 2             # the openning factor of the pixels
+    windowSize          = 50            # half the size of the window
     colorMap            = get_cmap(300, name='flag') # a colourmap with 300 colours
     statsPerTimeStep    = {}
 
@@ -172,17 +248,14 @@ if __name__ == "__main__":
         # read in the Data and extract into a np.array
         dens        = loadObj(testDataDir + "rho_{}".format(time))
 
-        # turn the time into the proper file dump by adding 100.
-        time        += 100
-
         # take a slice through (x,y,z=0)
-        dens    = dens[:,0,:]
+        dens    = dens[:,0,:] * unit_Density # g / cm^3
         s       = np.log(dens / dens.mean())
 
         # include the velocity information if the velocity argument
         # is true
         if args['vel'] == True:
-            v = computeVelocity(dens,time)
+            v = computeVelocity(dens,time) * 1e-5 # km / s
 
         # just a quick check of the field
         if args['viz'] == "field":
@@ -191,17 +264,20 @@ if __name__ == "__main__":
             ax.set_axis_off()
             plt.show()
 
+        # turn the time into the proper time by adding 100.
+        time        += 100
+
         # Perform Hough transfrom
         x, y, xMin, xMax, sMask = houghTransform(s,sThreshold)
 
         # Now we have isolated the mixing layer so we can pick out the region in our
         # simulation to extract the pillars
-        x0  = int(xMin[0])
-        x1  = int(xMax[0])
+        x0  = int(xMin)
+        x1  = int(xMax)
         y0  = int(y[0])
         y1  = int(y[-1])
 
-        # check the boundary has been detected
+        # initalise a new plot
         f, ax   = plt.subplots(1,2,figsize=(9,4),dpi=200)
 
         plt.subplots_adjust(left=0.00, bottom=0.05, right=0.95, top=0.95, wspace=-0.05, hspace=0.05)
@@ -224,7 +300,7 @@ if __name__ == "__main__":
         sML_mask    = np.pad(sML_mask,((0,0),(x0,s.shape[1]-x1)),mode='constant')
         allLabels   = labelCreator(sML_mask,openFactor)
 
-        # initialise plot
+        # take the first values for the colourmap bounds
         if tIter == 0:
             vMax = s.max()
             vMin = s.min()
@@ -258,15 +334,14 @@ if __name__ == "__main__":
             ax[1].add_patch(rect)
 
             ########################################################
-            # calculate everything from the region
+            # calculate everything from the region (i.e. this is where
+            # all of the region statistics is)
             ########################################################
 
-            # select the region in the density field
-            regionDens      = s[minc:maxc,minr:maxr]
-            # calculate the dispersion
-            densDispersion  = np.var(regionDens)
-            # calculate the total mass
-            mass            = sum(sum(regionDens))*dx*dy
+            # calculate the dispersion within the s region
+            densDispersion  = np.var(s[minc:maxc,minr:maxr])
+            # calculate the total mass within the region rho
+            mass            = sum(sum(dens[minc:maxc,minr:maxr]))*dx*dy*dz*(Parsec)**3
             # area in parsecs.
             area            = region.area*dx*dy
             # perimeter in parsecs
@@ -292,16 +367,21 @@ if __name__ == "__main__":
             centerY.append(centroidY)
             ax[1].scatter(centerX,centerY,c='b',s=1,marker='.')
 
-            euclideanDis    = []    # initialise an array for storing the euclidena distances between
-                                    # successive time-steps
-            addState = 0            # initialise an on / off state for adding new keys
+            euclideanDis = []   # initialise an array for storing the euclidena distances between
+                                # successive time-steps
+            addState = 0        # initialise an on / off state for adding new keys
 
             # if we are on the first iteration just store all of the regions into a dictionary
             # and give a unique ID
             if tIter == 0:
                 globaluniqueID[regionCounter]  = {'x':centroidX,'y':centroidY}
-                statsPerID[regionCounter]      = {'mass':mass,'svar':densDispersion,
-                                                       'area':area,'per':per}
+                if args['vel'] == True:
+                    statsPerID[regionCounter]  = {'mass':mass,'svar':densDispersion,
+                                                  'area':area,'per':per,'mach':regionMach,
+                                                  'b':regionB}
+                else:
+                    statsPerID[regionCounter]  = {'mass':mass,'svar':densDispersion,
+                                                  'area':area,'per':per}
                 ax[1].text(centroidX,centroidY,str(regionCounter),fontsize=16) # add a number annotation
             else:
                 # if not the first iteration (time)
@@ -317,14 +397,22 @@ if __name__ == "__main__":
                 keysAsInts  = map(int,possibleKeys.keys())
                 # if all of the possible regions are still there then move to the next iteration
                 if keysAsInts == []:
+                    print("All pillars were found from the previous time-step.")
                     continue
+                # Calculate the minimum distance between pillars between two
+                # concurrent time-steps
                 minDis      = min(np.array(euclideanDis))
                 minKey      = keysAsInts[euclideanDis.index(min(euclideanDis))]
                 if minDis < minDisTol:
                     # if it is, then store the value of that centroid in the old key
                     globaluniqueID[minKey]  = {'x':centroidX,'y':centroidY}
-                    statsPerID[minKey]      = {'mass':mass,'svar':densDispersion,
-                                               'area':area,'per':per}
+                    if args['vel'] == True:
+                        statsPerID[minKey]      = {'mass':mass,'svar':densDispersion,
+                                                   'area':area,'per':per,'mach':regionMach,
+                                                   'b':regionB}
+                    else:
+                        statsPerID[minKey]      = {'mass':mass,'svar':densDispersion,
+                                                   'area':area,'per':per}
                     ax[1].text(centroidX,centroidY,minKey,fontsize=16) # annotate plot
                     possibleKeys.pop(minKey,None)
                     localuniqueID[minKey] = None
@@ -341,8 +429,13 @@ if __name__ == "__main__":
                     newKey                 = max(map(int,globaluniqueID.keys())) + 1
                     # add it to the global centroid dictionary
                     globaluniqueID[newKey] = {'x':centroidX,'y':centroidY}
-                    statsPerID[newKey]     = {'mass':mass,'svar':densDispersion,
-                                               'area':area,'per':per}
+                    if args['vel'] == True:
+                        statsPerID[newKey]      = {'mass':mass,'svar':densDispersion,
+                                                   'area':area,'per':per,'mach':regionMach,
+                                                   'b':regionB}
+                    else:
+                        statsPerID[newKey]     = {'mass':mass,'svar':densDispersion,
+                                                   'area':area,'per':per}
                     ax[1].text(centroidX,centroidY,newKey,fontsize=16) # annotate plot
 
             regionCounter +=1
