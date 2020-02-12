@@ -5,6 +5,8 @@ The pillars are created using the PLUTO code, http://plutocode.ph.unito.it .
 
 We rely on computer vision techniques, from `skimage`, like the Hough transform, pixel dilation, and simple segmentation algorithms based upon disconnected density regions to identify each distinct pillar (or high-density globular structure).
 
+Currently the code is implemented in 2D, but the intention is to generalise the code to 3D.
+
 ## Statistics we intend to extract from each pillar
 
 * lifetime
@@ -15,3 +17,7 @@ We rely on computer vision techniques, from `skimage`, like the Hough transform,
 * rms turbulent Mach number
 * turbulent driving parameter
 * star formation potential
+
+## A snap-shot of the detction algorithm working
+![GitHub Logo](/Pics/gitPic1.png)
+Format: ![Alt Text](url)
