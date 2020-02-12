@@ -135,3 +135,6 @@ vy*
 vz*
 rho_*
 pillarStatistics.pkl
+
+.DS_Store
+.gitignore
