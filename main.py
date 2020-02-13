@@ -36,8 +36,14 @@ args = vars(ap.parse_args())
 # Command Examples
 ############################################################################################################################################
 """
-#
+
 run main -tend 100 -write True -clear True -vel True
+
+> ends the detection code on file number 100
+> writes the statistics data to some .pickle files
+> clears the plotting directory
+> computes the velocity statistics, as well as the density statistics
+    (i.e. loads in the velocity field)
 
 """
 
@@ -47,14 +53,16 @@ run main -tend 100 -write True -clear True -vel True
 def sampleHough(xValues,yValues):
     """
     DESCRIPTION:
-
-
+    This function takes the most dominant line from the Hough transform data.
+    The Hough transform generates many line fits.
 
     INPUT:
-
-
+    xValues -
+    yValues -
 
     OUTPUT:
+    x -
+    y -
 
     """
 
@@ -98,17 +106,19 @@ def sampleHough(xValues,yValues):
 
     return x, y
 
+
 def labelCreator(image,openFactor):
     """
     DESCRIPTION:
-
+    This function creates labels for each of the distinct regions in the density field.
 
 
     INPUT:
-
-
+    image       -
+    openFactor  -
 
     OUTPUT:
+    allLabels   -
 
     """
 
@@ -116,6 +126,7 @@ def labelCreator(image,openFactor):
     image_open      = opening(image,square(openFactor))
     allLabels       = measure.label(image)
     return allLabels
+
 
 def get_cmap(n, name='hsv'):
     """
@@ -125,29 +136,33 @@ def get_cmap(n, name='hsv'):
 
     return plt.cm.get_cmap(name, n)
 
+
 def computeVelocity(dens,time):
     """
     DESCRIPTION:
-
+    This function computes the turbulent velocity component of the
+    vector field by subtracting the average bulk (centre of mass) motion.
 
 
     INPUT:
-
+    dens -
+    time -
 
 
     OUTPUT:
+    v   -
 
     """
     print("Computing the turbulent component of the velocity field")
     # construct the magnitude of v field
-    vx = loadObj(testDataDir + "vx_{}".format(time)) * unit_Velocity # cm /s
-    vy = loadObj(testDataDir + "vy_{}".format(time)) * unit_Velocity # cm /s
-    vz = loadObj(testDataDir + "vz_{}".format(time)) * unit_Velocity # cm /s
+    vx = loadObj(testDataDir + "vx_{}".format(time))[:,0,:] * unit_Velocity # cm /s
+    vy = loadObj(testDataDir + "vy_{}".format(time))[:,0,:] * unit_Velocity # cm /s
+    vz = loadObj(testDataDir + "vz_{}".format(time))[:,0,:] * unit_Velocity # cm /s
 
     # calculate the centre of mass velocity vector
-    vx_cm = sum(vx * dens) / sum(dens)
-    vy_cm = sum(vy * dens) / sum(dens)
-    vz_cm = sum(vz * dens) / sum(dens)
+    vx_cm = sum(sum(vx * dens)) / sum(sum(dens))
+    vy_cm = sum(sum(vy * dens)) / sum(sum(dens))
+    vz_cm = sum(sum(vz * dens)) / sum(sum(dens))
 
     # construct the velocity, v_turb, which is the bulk
     # velocity minus the center of mass velocity
@@ -161,17 +176,24 @@ def computeVelocity(dens,time):
 
     return v
 
+
 def houghTransform(s,sThreshold):
     """
     DESCRIPTION:
-
+    This function computes the hough transform.
 
 
     INPUT:
-
+    s           -
+    sThreshold  -
 
 
     OUTPUT:
+    x       -
+    y       -
+    xMin    -
+    yMin    -
+    sMask   -
 
     """
     print("Calculating the Hough Transform")
@@ -222,7 +244,8 @@ if __name__ == "__main__":
         print("Clearing old plots")
         os.system("rm ./Plots/*")
 
-    # data test directory
+    # All code parameters
+    ####################################################################################################################################
     dx = dy = dz        = 0.02  # pc
     dt                  = 10    # kyr
     Amin                = 5     # dxdy
@@ -236,14 +259,18 @@ if __name__ == "__main__":
     centerX             = []            # the x coordiante of the centroid
     centerY             = []            # the y coordinate of the centroid
     tIter               = 0             # the time iteration value
-    minDisTol           = 5             # the tolerance in pixel values for tracking centroids across time (in pixel size)
+    minDisTol           = 5             # the tolerance in Euc. distance for tracking centroids across time (in pixel size)
     idsPerTimeStep      = {}            # the dictionary for storing the IDs each time step
     allIDs              = []            # a list of all IDs, for all time
     openFactor          = 2             # the openning factor of the pixels
     windowSize          = 50            # half the size of the window
     colorMap            = get_cmap(300, name='flag') # a colourmap with 300 colours
-    statsPerTimeStep    = {}
+    statsPerTimeStep    = {}            # a dictionary that stores the statistics for each time step
+                                        # and then updates the global dictionary
 
+    ####################################################################################################################################
+
+    # for each piece of data
     for time in times:
         # read in the Data and extract into a np.array
         dens        = loadObj(testDataDir + "rho_{}".format(time))
@@ -333,15 +360,15 @@ if __name__ == "__main__":
             rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr,fill=False, edgecolor='red', linewidth=2)
             ax[1].add_patch(rect)
 
-            ########################################################
+            ############################################################
             # calculate everything from the region (i.e. this is where
-            # all of the region statistics is)
-            ########################################################
+            # all of the region statistics are)
+            ############################################################
 
             # calculate the dispersion within the s region
             densDispersion  = np.var(s[minc:maxc,minr:maxr])
             # calculate the total mass within the region rho
-            mass            = sum(sum(dens[minc:maxc,minr:maxr]))*dx*dy*dz*(Parsec)**3
+            mass            = sum(sum(dens[minc:maxc,minr:maxr]))*dx*dy*dz*(Parsec)**3 * (1. / SolarMass)
             # area in parsecs.
             area            = region.area*dx*dy
             # perimeter in parsecs
@@ -454,16 +481,6 @@ if __name__ == "__main__":
         updateStats             = statsPerID.copy()
         allIDs                  += map(int,globaluniqueID.keys())
         statsPerTimeStep[time]  = updateStats
-
-        # ax3.set_ylabel(r"$x$")
-        # ax3.set_xlim(105,200)
-        # ax3.set_ylim(0,200)
-        #
-        # ax4.set_ylabel(r"$y$")
-        # ax4.set_xlabel(r"$t$")
-        # ax4.set_xlim(105,200)
-        # ax4.set_ylim(0,200)
-
 
         plt.tight_layout()
         print("Writing rho_{}.png".format(time))
