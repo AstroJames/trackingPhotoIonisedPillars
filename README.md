@@ -1,5 +1,5 @@
 # Tracking High-Density Pillars
-An automated system for tracking high-density, photoionised pillars, previously studied in Menon, Federrath & Kuiper, 2020.
+An automated system for tracking high-density, photoionised pillars, previously studied in Menon, Federrath & Kuiper, 2020 (under-review).
 
 The pillars are created using the PLUTO code, http://plutocode.ph.unito.it .
 
