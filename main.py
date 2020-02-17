@@ -23,6 +23,7 @@ from skimage import filters, measure
 import matplotlib.patches as patches
 import matplotlib.patches as mpatches
 
+
 # Command Line Arguments
 ############################################################################################################################################
 ap = argparse.ArgumentParser(description='command line inputs')
@@ -30,22 +31,26 @@ ap.add_argument('-tend', '--tend',default=11,help='the tend simulation timestamp
 ap.add_argument('-viz', '--viz',default=None,help='visualisation setting', type=str)
 ap.add_argument('-write','--write',default=False,help='an argument for writing or not writing pickle files',type=bool)
 ap.add_argument('-vel','--vel',default=False,help='an argument for loading in the velocity',type=bool)
+ap.add_argument('-ionX','--ionX',default=False,help='an argument for loading in the ionised fraction field',type=bool)
 ap.add_argument('-clear','--clear',default=False,help='clear all of the old plotting files',type=bool)
 args = vars(ap.parse_args())
+
 
 # Command Examples
 ############################################################################################################################################
 """
 
-run main -tend 100 -write True -clear True -vel True
+run main -tend 11 -write True -clear True -vel True -ionX True
 
 > ends the detection code on file number 100
 > writes the statistics data to some .pickle files
 > clears the plotting directory
 > computes the velocity statistics, as well as the density statistics
     (i.e. loads in the velocity field)
+> loads the ionised fraction and extract neutral coordinates from the region
 
 """
+
 
 # Functions
 ############################################################################################################################################
@@ -54,15 +59,15 @@ def sampleHough(xValues,yValues):
     """
     DESCRIPTION:
     This function takes the most dominant line from the Hough transform data.
-    The Hough transform generates many line fits.
+    see: https://scikit-image.org/docs/dev/auto_examples/edges/plot_line_hough_transform.html
 
     INPUT:
-    xValues -
-    yValues -
+    xValues - the x values from the houghTransform function
+    yValues - the y values from the houghTransform function
 
     OUTPUT:
-    x -
-    y -
+    x       - the x values for the most dominant line
+    y       - the y values for the most dominant line
 
     """
 
@@ -107,34 +112,49 @@ def sampleHough(xValues,yValues):
     return x, y
 
 
-def labelCreator(image,openFactor):
+def labelCreator(dens,openFactor):
     """
     DESCRIPTION:
     This function creates labels for each of the distinct regions in the density field.
-
+    see: https://scikit-image.org/docs/0.12.x/api/skimage.measure.html
 
     INPUT:
-    image       -
-    openFactor  -
+    dens        - the density field for labelling
+    openFactor  - the opening factor for the field
+                see: https://en.wikipedia.org/wiki/Opening_(morphology)
+                which determines how large the square is for the hit-miss operator
 
     OUTPUT:
-    allLabels   -
+    allLabels   - the labelled regions stored in a list
 
     """
 
     # Some pre-processing of the labels
-    image_open      = opening(image,square(openFactor))
-    allLabels       = measure.label(image)
+    dens_open      = opening(dens,square(openFactor))
+    allLabels       = measure.label(dens)
+
+
     return allLabels
 
 
 def get_cmap(n, name='hsv'):
     """
+    DESCRIPTION:
     Returns a function that maps each index in 0, 1, ..., n-1 to a distinct
     RGB color; the keyword argument name must be a standard mpl colormap name.
+
+    INPUT:
+    n       - the number of unique colours
+    name    - the type of color map
+
+    OUTPUT:
+    cm      - the n number of colors from the colour map
+
     """
 
-    return plt.cm.get_cmap(name, n)
+    cm = plt.cm.get_cmap(name, n)
+
+    return cm
 
 
 def computeVelocity(dens,time):
@@ -143,16 +163,15 @@ def computeVelocity(dens,time):
     This function computes the turbulent velocity component of the
     vector field by subtracting the average bulk (centre of mass) motion.
 
-
     INPUT:
-    dens -
-    time -
-
+    dens - the density field for computing the centre of momentum frame (g/cm^3)
+    time - the time index for the data (0-100)
 
     OUTPUT:
-    v   -
+    v   - the turbulent velocity component of the velocity field (cm / s)
 
     """
+
     print("Computing the turbulent component of the velocity field")
     # construct the magnitude of v field
     vx = loadObj(testDataDir + "vx_{}".format(time))[:,0,:] # cm /s
@@ -180,22 +199,23 @@ def computeVelocity(dens,time):
 def houghTransform(s,sThreshold):
     """
     DESCRIPTION:
-    This function computes the hough transform.
-
+    This function computes the hough transform, for determining the shock front.
+    see: https://scikit-image.org/docs/dev/auto_examples/edges/plot_line_hough_transform.html
 
     INPUT:
-    s           -
-    sThreshold  -
-
+    s           - the 2D density field ln(\rho/\rho_0)
+    sThreshold  - the threshold for the field. Densities above this threshold
+                will be used to identify the shock front
 
     OUTPUT:
-    x       -
-    y       -
-    xMin    -
-    yMin    -
-    sMask   -
+    x       - x coordinate of the Hough transform
+    y       - y coordinate of the Hough transform
+    xMin    - x coordinate of the window around the shock front
+    yMin    - y coordinate of the window around the shock front
+    sMask   - the mask, s.max() * sThreshold (for checking)
 
     """
+
     print("Calculating the Hough Transform")
     # Create a mask on s for detecting the ionisation front
     sMask = s > s.max()*sThreshold
@@ -235,14 +255,47 @@ def houghTransform(s,sThreshold):
 
     return x, y, xMin, xMax, sMask
 
+
+def ionFractionFilter(time,minc,maxc,minr,maxr):
+    """
+    DESCRIPTION:
+    This function samples the region for just the neutrals. Ionised contaminents will influence the
+    turbulent Mach number calculation.
+
+    INPUT:
+    time        - the time index for the data (0-100)
+    minc        - the minimum y value of the bounding box for the region
+    maxc        - the maximum y value of the bounding box for the region
+    minr        - the minimum x value of the bounding box for the region
+    maxr        - the maximum x value of the bounding box for the region
+
+    OUTPUT:
+    maskCoords  - the coordinates of the neutrals in the region
+
+    """
+
+    # Read in the ion fraction and extract the region
+    ionX        = loadObj(testDataDir + "ionX_{}".format(time-100))[:,0,:]
+    ionXRegion  = ionX[minc:maxc,minr:maxr]
+
+    # Extract ionised region and filter the denisty
+    print("Filtering the density for values that correspond to < 0.2 ionised")
+    ionXMask    = ionXRegion < 0.2
+    maskCoords  = np.nonzero( ionXMask )
+
+    sizeOfRegion    = len(ionXRegion.ravel())
+    sizeOfIonised   = len(maskCoords[0])
+
+    fracOfPixels    = float(sizeOfRegion) / float(sizeOfIonised)
+
+    print("The fraction of densities that are < 0.2 ionised in the region is: {}".format(fracOfPixels))
+
+    return maskCoords
+
+
 # Working script
 ############################################################################################################################################
 if __name__ == "__main__":
-
-    # Clear old plots from the directory
-    if args['clear'] == True:
-        print("Clearing old plots")
-        os.system("rm ./Plots/*")
 
     # All code parameters
     ####################################################################################################################################
@@ -255,7 +308,7 @@ if __name__ == "__main__":
     sThreshold          = 0.5   # density threshold
     globaluniqueID      = {}    # initalise the global ID dictionary
     times               = np.arange(10,args['tend'])     # the times to run the code on
-    timesArr            = []                   # a list for storing the different times for plotting
+    timesArr            = []            # a list for storing the different times for plotting
     centerX             = []            # the x coordiante of the centroid
     centerY             = []            # the y coordinate of the centroid
     tIter               = 0             # the time iteration value
@@ -270,8 +323,16 @@ if __name__ == "__main__":
 
     ####################################################################################################################################
 
+
+    # Clear old plots from the directory
+    if args['clear'] == True:
+        print("Clearing old plots")
+        os.system("rm ./Plots/*")
+
+
     # for each piece of data
     for time in times:
+
         # read in the Data and extract into a np.array
         dens        = loadObj(testDataDir + "rho_{}".format(time))
 
@@ -304,9 +365,8 @@ if __name__ == "__main__":
         y0  = int(y[0])
         y1  = int(y[-1])
 
-        # initalise a new plot
+        # initalise a new plot for the s map and feature map
         f, ax   = plt.subplots(1,2,figsize=(9,4),dpi=200)
-
         plt.subplots_adjust(left=0.00, bottom=0.05, right=0.95, top=0.95, wspace=-0.05, hspace=0.05)
         ax[0].imshow(sMask,cmap=plt.cm.plasma)
         rect = patches.Rectangle((x0,0),x1 - x0, s.shape[0],linewidth=1,edgecolor='r',facecolor='r',alpha=0.2);
@@ -321,6 +381,7 @@ if __name__ == "__main__":
         ax[0].set_ylim((s.shape[0], 0))
         ax[0].set_axis_off()
 
+
         # filter on the densities within the small regions and then create a threshold
         sML         = s[:,x0:x1]
         sML_mask    = sML > sML.max()*sThreshold
@@ -332,12 +393,14 @@ if __name__ == "__main__":
             vMax = s.max()
             vMin = s.min()
 
+        # create the s (slice) map with time annotations
         plot    = ax[1].imshow(s,cmap=plt.cm.plasma,vmin=vMin,vmax=vMax)
         ax[1].annotate(r"$t = ${}".format(time) + r"$dt$", xy=(labelDx + 0.275-eps,labelDy-eps), xycoords = xyCoords,color="white",fontsize=fs-2)
         ax[1].annotate(r"$t = ${}".format(time) + r"$dt$", xy=(labelDx + 0.275,labelDy), xycoords = xyCoords,color="black",fontsize=fs-2)
         ax[1].set_axis_off()
         cb = plt.colorbar(plot)
         cb.set_label(r"$s = \ln(\rho/\rho_0)$",fontsize=16)
+
 
         localuniqueID   = {}    # initialise a unique ID for each centroid, for this timestep
         statsPerID      = {}    # initialise a dictionary for the stats, for each region
@@ -366,18 +429,33 @@ if __name__ == "__main__":
             ############################################################
 
             # calculate the dispersion within the s region
-            densDispersion  = np.var(s[minc:maxc,minr:maxr])
+            sRegion = s[minc:maxc,minr:maxr]
+
+            # if args['ionX'] is true then filter the densities by only using the
+            # neutrals
+            if args['ionX'] == True:
+                neutralCoords = ionFractionFilter(time,minc,maxc,minr,maxr)
+                densDispersion  = np.var(sRegion[neutralCoords])
+            else:
+                densDispersion  = np.var(sRegion)
+
             # calculate the total mass within the region rho
             mass            = sum(sum(dens[minc:maxc,minr:maxr]))*dx*dy*dz*(Parsec)**3 * (1. / SolarMass)
-            # area in parsecs.
+            # area in parsecs^2.
             area            = region.area*dx*dy
             # perimeter in parsecs
             per             = region.perimeter*dx
 
             # velocity statistics
             if args['vel'] == True:
-                # select the region in the mag v field
-                regionVel   = v[minc:maxc,minr:maxr]
+
+                # select the region in the mag v field either
+                # using the regular bounding box or the neutral
+                # coorindates
+                if args['ionX'] == True:
+                    regionVel   = v[neutralCoords]
+                else:
+                    regionVel   = v[minc:maxc,minr:maxr]
 
                 # calculate the velocity dispersion
                 regionMach  = regionVel.std() / cs
@@ -386,8 +464,7 @@ if __name__ == "__main__":
                 regionB     = np.sqrt( ( np.exp(densDispersion) - 1 ) / regionMach**2  )
 
             # calculate the centroids
-            centroidX = maxc - (maxc - minc)/2.
-            centroidY = maxr - (maxr - minr)/2.
+            centroidY ,centroidX = region.centroid
 
             # store the centroids and the time for plotting
             centerX.append(centroidX)
