@@ -39,11 +39,9 @@ if __name__ == "__main__":
     allIDs      = pillarIDDic['all']
     pillarIDDic.pop('all',None)
 
-
     # Histogram of lifetimes
     hist, _         = np.histogram(allIDs, bins=max(allIDs))
     pillarLifeTime  = hist * 10e3 #yrs
-
     plt.figure(dpi=200)
     plt.hist(x=pillarLifeTime,bins=20,normed=True,log=True,color='black',histtype='step')
     plt.xscale('log')
@@ -52,7 +50,7 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show()
 
-    # x,y coordinate plot for
+    # Space-time diagrams for each of the pillars
     colorMap = get_cmap(300, name='flag')
     f, ax = plt.subplots(2,1,dpi=200,sharex=True)
     plt.subplots_adjust(left=0.08, bottom=0.12, right=0.97, top=0.97, wspace=-0.05, hspace=0.05)

@@ -87,7 +87,7 @@ def sampleHough(xValues,yValues):
     y = m*x + c
 
     # Now downsample the coordinates to only
-    # include cooridnates in the density field domain
+    # include coordinates in the density field domain
 
     # Create some empty arrays
     xIn = []
@@ -155,9 +155,9 @@ def computeVelocity(dens,time):
     """
     print("Computing the turbulent component of the velocity field")
     # construct the magnitude of v field
-    vx = loadObj(testDataDir + "vx_{}".format(time))[:,0,:] * unit_Velocity # cm /s
-    vy = loadObj(testDataDir + "vy_{}".format(time))[:,0,:] * unit_Velocity # cm /s
-    vz = loadObj(testDataDir + "vz_{}".format(time))[:,0,:] * unit_Velocity # cm /s
+    vx = loadObj(testDataDir + "vx_{}".format(time))[:,0,:] # cm /s
+    vy = loadObj(testDataDir + "vy_{}".format(time))[:,0,:] # cm /s
+    vz = loadObj(testDataDir + "vz_{}".format(time))[:,0,:] # cm /s
 
     # calculate the centre of mass velocity vector
     vx_cm = sum(sum(vx * dens)) / sum(sum(dens))
@@ -276,7 +276,7 @@ if __name__ == "__main__":
         dens        = loadObj(testDataDir + "rho_{}".format(time))
 
         # take a slice through (x,y,z=0)
-        dens    = dens[:,0,:] * unit_Density # g / cm^3
+        dens    = dens[:,0,:] # g / cm^3
         s       = np.log(dens / dens.mean())
 
         # include the velocity information if the velocity argument
