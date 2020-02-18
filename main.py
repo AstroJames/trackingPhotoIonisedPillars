@@ -131,8 +131,7 @@ def labelCreator(dens,openFactor):
 
     # Some pre-processing of the labels
     dens_open      = opening(dens,square(openFactor))
-    allLabels       = measure.label(dens)
-
+    allLabels      = measure.label(dens)
 
     return allLabels
 
@@ -276,7 +275,7 @@ def ionFractionFilter(time,minc,maxc,minr,maxr):
 
     # Read in the ion fraction and extract the region
     ionX        = loadObj(testDataDir + "ionX_{}".format(time-100))[:,0,:]
-    ionXRegion  = ionX[minc:maxc,minr:maxr]
+    ionXRegion  = ionX[minr:maxr,minc:maxc]
 
     # Extract ionised region and filter the denisty
     print("Filtering the density for values that correspond to < 1e-4 ionised")
@@ -288,15 +287,18 @@ def ionFractionFilter(time,minc,maxc,minr,maxr):
     sizeOfIonised   = len(maskCoords[0])
 
     # Compute and report the fraction
-    fracOfPixels    = float(sizeOfRegion) / float(sizeOfIonised)
+    fracOfPixels    = float(sizeOfIonised) / float(sizeOfRegion) 
 
     print("The fraction of densities that are < 1e-4 ionised in the region is: {}".format(fracOfPixels))
+
+    # no need to keep this in memory
+    del ionX
 
     return maskCoords
 
 
 # Working script
-############################################################################################################################################
+########################################################################################################################################
 if __name__ == "__main__":
 
     # All code parameters
@@ -431,18 +433,18 @@ if __name__ == "__main__":
             ############################################################
 
             # calculate the dispersion within the s region
-            sRegion = s[minc:maxc,minr:maxr]
+            sRegion = s[minr:maxr,minc:maxc]
 
             # if args['ionX'] is true then filter the densities by only using the
             # neutrals
             if args['ionX'] == True:
-                neutralCoords = ionFractionFilter(time,minc,maxc,minr,maxr)
+                neutralCoords   = ionFractionFilter(time,minc,maxc,minr,maxr)
                 densDispersion  = np.var(sRegion[neutralCoords])
             else:
                 densDispersion  = np.var(sRegion)
 
             # calculate the total mass within the region rho
-            mass            = sum(sum(dens[minc:maxc,minr:maxr]))*dx*dy*dz*(Parsec)**3 * (1. / SolarMass)
+            mass            = sum(sum(dens[minr:maxr,minc:maxc]))*dx*dy*dz*(Parsec)**3 * (1. / SolarMass)
             # area in parsecs^2.
             area            = region.area*dx*dy
             # perimeter in parsecs
@@ -457,7 +459,7 @@ if __name__ == "__main__":
                 if args['ionX'] == True:
                     regionVel   = v[neutralCoords]
                 else:
-                    regionVel   = v[minc:maxc,minr:maxr]
+                    regionVel   = v[minr:maxr,minc:maxc]
 
                 # calculate the velocity dispersion
                 regionMach  = regionVel.std() / cs
@@ -465,7 +467,7 @@ if __name__ == "__main__":
                 # calculate the forcing parameter, b
                 regionB     = np.sqrt( ( np.exp(densDispersion) - 1 ) / regionMach**2  )
 
-            # calculate the centroids
+            # calculate the (mass) centroids
             centroidY ,centroidX = region.centroid
 
             # store the centroids and the time for plotting
@@ -482,12 +484,17 @@ if __name__ == "__main__":
             if tIter == 0:
                 globaluniqueID[regionCounter]  = {'x':centroidX,'y':centroidY}
                 if args['vel'] == True:
-                    statsPerID[regionCounter]  = {'mass':mass,'svar':densDispersion,
-                                                  'area':area,'per':per,'mach':regionMach,
+                    statsPerID[regionCounter]  = {'mass':mass,
+                                                  'svar':densDispersion,
+                                                  'area':area,
+                                                  'per':per,
+                                                  'mach':regionMach,
                                                   'b':regionB}
                 else:
-                    statsPerID[regionCounter]  = {'mass':mass,'svar':densDispersion,
-                                                  'area':area,'per':per}
+                    statsPerID[regionCounter]  = {'mass':mass,
+                                                  'svar':densDispersion,
+                                                  'area':area,
+                                                  'per':per}
                 ax[1].text(centroidX,centroidY,str(regionCounter),fontsize=16) # add a number annotation
             else:
                 # if not the first iteration (time)
@@ -513,12 +520,17 @@ if __name__ == "__main__":
                     # if it is, then store the value of that centroid in the old key
                     globaluniqueID[minKey]  = {'x':centroidX,'y':centroidY}
                     if args['vel'] == True:
-                        statsPerID[minKey]      = {'mass':mass,'svar':densDispersion,
-                                                   'area':area,'per':per,'mach':regionMach,
+                        statsPerID[minKey]      = {'mass':mass,
+                                                   'svar':densDispersion,
+                                                   'area':area,
+                                                   'per':per,
+                                                   'mach':regionMach,
                                                    'b':regionB}
                     else:
-                        statsPerID[minKey]      = {'mass':mass,'svar':densDispersion,
-                                                   'area':area,'per':per}
+                        statsPerID[minKey]      = {'mass':mass,
+                                                   'svar':densDispersion,
+                                                   'area':area,
+                                                   'per':per}
                     ax[1].text(centroidX,centroidY,minKey,fontsize=16) # annotate plot
                     possibleKeys.pop(minKey,None)
                     localuniqueID[minKey] = None
@@ -536,12 +548,17 @@ if __name__ == "__main__":
                     # add it to the global centroid dictionary
                     globaluniqueID[newKey] = {'x':centroidX,'y':centroidY}
                     if args['vel'] == True:
-                        statsPerID[newKey]      = {'mass':mass,'svar':densDispersion,
-                                                   'area':area,'per':per,'mach':regionMach,
+                        statsPerID[newKey]      = {'mass':mass,
+                                                   'svar':densDispersion,
+                                                   'area':area,
+                                                   'per':per,
+                                                   'mach':regionMach,
                                                    'b':regionB}
                     else:
-                        statsPerID[newKey]     = {'mass':mass,'svar':densDispersion,
-                                                   'area':area,'per':per}
+                        statsPerID[newKey]     = {'mass':mass,
+                                                  'svar':densDispersion,
+                                                   'area':area,
+                                                   'per':per}
                     ax[1].text(centroidX,centroidY,newKey,fontsize=16) # annotate plot
 
             regionCounter +=1
