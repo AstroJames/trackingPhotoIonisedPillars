@@ -279,8 +279,8 @@ def ionFractionFilter(time,minc,maxc,minr,maxr):
     ionXRegion  = ionX[minc:maxc,minr:maxr]
 
     # Extract ionised region and filter the denisty
-    print("Filtering the density for values that correspond to < 0.2 ionised")
-    ionXMask    = ionXRegion < 0.2
+    print("Filtering the density for values that correspond to < 1e-4 ionised")
+    ionXMask    = ionXRegion < 1e-4
     maskCoords  = np.nonzero( ionXMask )
 
     # Compute the size of the region and the amount of neutrals in it
@@ -290,7 +290,7 @@ def ionFractionFilter(time,minc,maxc,minr,maxr):
     # Compute and report the fraction
     fracOfPixels    = float(sizeOfRegion) / float(sizeOfIonised)
 
-    print("The fraction of densities that are < 0.2 ionised in the region is: {}".format(fracOfPixels))
+    print("The fraction of densities that are < 1e-4 ionised in the region is: {}".format(fracOfPixels))
 
     return maskCoords
 

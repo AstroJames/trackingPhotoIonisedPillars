@@ -18,5 +18,5 @@ Currently the code is implemented in 2D, but the intention is to generalise the 
 * turbulent driving parameter
 * star formation potential
 
-## A snap-shot of the detction algorithm working at t= 0
+## A snap-shot of the detection algorithm working at t= 0
 ![t=0](/Pics/gitPic1.png)
