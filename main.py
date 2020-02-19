@@ -71,7 +71,7 @@ def sampleHough(xValues,yValues):
 
     """
 
-    print("Extracting the most dominant line from the Hough transform")
+    print("Extracting the most dominant line from the Hough transform.")
     # x values
     x0 = xValues[0]
     x1 = xValues[1]
@@ -171,7 +171,7 @@ def computeVelocity(dens,time):
 
     """
 
-    print("Computing the turbulent component of the velocity field")
+    print("Computing the turbulent component of the velocity field.")
     # construct the magnitude of v field
     vx = loadObj(testDataDir + "vx_{}".format(time))[:,0,:] # cm /s
     vy = loadObj(testDataDir + "vy_{}".format(time))[:,0,:] # cm /s
@@ -215,7 +215,7 @@ def houghTransform(s,sThreshold):
 
     """
 
-    print("Calculating the Hough Transform")
+    print("Calculating the Hough Transform.")
     # Create a mask on s for detecting the ionisation front
     sMask = s > s.max()*sThreshold
 
@@ -278,7 +278,7 @@ def ionFractionFilter(time,minc,maxc,minr,maxr):
     ionXRegion  = ionX[minr:maxr,minc:maxc]
 
     # Extract ionised region and filter the denisty
-    print("Filtering the density for values that correspond to < 1e-4 ionised")
+    print("Filtering density for  < 1e-4 ionised cells.")
     ionXMask    = ionXRegion < 1e-4
     maskCoords  = np.nonzero( ionXMask )
 
@@ -287,14 +287,12 @@ def ionFractionFilter(time,minc,maxc,minr,maxr):
     sizeOfIonised   = len(maskCoords[0])
 
     # Compute and report the fraction
-    fracOfPixels    = float(sizeOfIonised) / float(sizeOfRegion) 
-
-    print("The fraction of densities that are < 1e-4 ionised in the region is: {}".format(fracOfPixels))
+    ionisationFraction    = float(sizeOfIonised) / float(sizeOfRegion)
 
     # no need to keep this in memory
     del ionX
 
-    return maskCoords
+    return maskCoords, ionisationFraction
 
 
 # Working script
@@ -305,7 +303,7 @@ if __name__ == "__main__":
     ####################################################################################################################################
     dx = dy = dz        = 0.02  # pc
     dt                  = 10    # kyr
-    Amin                = 5     # dxdy
+    Amin                = 25    # dxdy
     cs                  = 0.28  # km /s, sound-speed for the neutral gas
     testDataDir         = "/Volumes/JamesBe/pillarTracking/testData/"
     writeDir            = "/Users/jamesbeattie/Documents/Research/2020/pillarTracking/PythonScripts/trackingPhotoIonisedPillars/"
@@ -330,12 +328,14 @@ if __name__ == "__main__":
 
     # Clear old plots from the directory
     if args['clear'] == True:
-        print("Clearing old plots")
+        print("Clearing old plots.")
         os.system("rm ./Plots/*")
 
 
     # for each piece of data
     for time in times:
+        print("Starting iteration on file number {}".format(time))
+        print("#####################################")
 
         # read in the Data and extract into a np.array
         dens        = loadObj(testDataDir + "rho_{}".format(time))
@@ -415,7 +415,7 @@ if __name__ == "__main__":
         possibleKeys = globaluniqueID.copy()
 
         # for each disjoint region (i.e. pillar)
-        print("labelling pillars.")
+        print("Labelling pillars.")
         for region in measure.regionprops(allLabels):
 
             # skip small regions
@@ -438,10 +438,20 @@ if __name__ == "__main__":
             # if args['ionX'] is true then filter the densities by only using the
             # neutrals
             if args['ionX'] == True:
-                neutralCoords   = ionFractionFilter(time,minc,maxc,minr,maxr)
-                densDispersion  = np.var(sRegion[neutralCoords])
+                neutralCoords, ionisationFraction   = ionFractionFilter(time,minc,maxc,minr,maxr)
+                densDispersion                      = np.var(sRegion[neutralCoords])
+
+                #BUG TEST#
+                if np.isnan(densDispersion) == True:
+                    print("Density dispersion is nan")
+                    continue
+
             else:
                 densDispersion  = np.var(sRegion)
+
+                if np.isnan(densDispersion) == True:
+                    print("Density dispersion is nan")
+                    continue
 
             # calculate the total mass within the region rho
             mass            = sum(sum(dens[minr:maxr,minc:maxc]))*dx*dy*dz*(Parsec)**3 * (1. / SolarMass)
@@ -467,6 +477,10 @@ if __name__ == "__main__":
                 # calculate the forcing parameter, b
                 regionB     = np.sqrt( ( np.exp(densDispersion) - 1 ) / regionMach**2  )
 
+                if np.isnan(regionB) == True:
+                    print("b is nan")
+                    continue
+
             # calculate the (mass) centroids
             centroidY ,centroidX = region.centroid
 
@@ -475,7 +489,7 @@ if __name__ == "__main__":
             centerY.append(centroidY)
             ax[1].scatter(centerX,centerY,c='b',s=1,marker='.')
 
-            euclideanDis = []   # initialise an array for storing the euclidena distances between
+            euclideanDis = []   # initialise an array for storing the Euclidean distances between
                                 # successive time-steps
             addState = 0        # initialise an on / off state for adding new keys
 
@@ -489,12 +503,14 @@ if __name__ == "__main__":
                                                   'area':area,
                                                   'per':per,
                                                   'mach':regionMach,
-                                                  'b':regionB}
+                                                  'b':regionB,
+                                                  'fracX':ionisationFraction}
                 else:
                     statsPerID[regionCounter]  = {'mass':mass,
                                                   'svar':densDispersion,
                                                   'area':area,
-                                                  'per':per}
+                                                  'per':per,
+                                                  'fracX':ionisationFraction}
                 ax[1].text(centroidX,centroidY,str(regionCounter),fontsize=16) # add a number annotation
             else:
                 # if not the first iteration (time)
@@ -525,12 +541,14 @@ if __name__ == "__main__":
                                                    'area':area,
                                                    'per':per,
                                                    'mach':regionMach,
-                                                   'b':regionB}
+                                                   'b':regionB,
+                                                   'fracX':ionisationFraction}
                     else:
                         statsPerID[minKey]      = {'mass':mass,
                                                    'svar':densDispersion,
                                                    'area':area,
-                                                   'per':per}
+                                                   'per':per,
+                                                   'fracX':ionisationFraction}
                     ax[1].text(centroidX,centroidY,minKey,fontsize=16) # annotate plot
                     possibleKeys.pop(minKey,None)
                     localuniqueID[minKey] = None
@@ -553,21 +571,32 @@ if __name__ == "__main__":
                                                    'area':area,
                                                    'per':per,
                                                    'mach':regionMach,
-                                                   'b':regionB}
+                                                   'b':regionB,
+                                                   'fracX':ionisationFraction}
                     else:
                         statsPerID[newKey]     = {'mass':mass,
                                                   'svar':densDispersion,
                                                    'area':area,
-                                                   'per':per}
+                                                   'per':per,
+                                                   'fracX':ionisationFraction}
                     ax[1].text(centroidX,centroidY,newKey,fontsize=16) # annotate plot
 
             regionCounter +=1
+        print("There has been {} distinct structures identified.".format(regionCounter))
+
+
+        # a counter for recording the elements that are being deleted
+        delCounter = 0
 
         # Now remove keys that are NOT in the local
         difSet = set(map(int,possibleKeys.keys()))
         if difSet != set():
+            delCounter += 1
             for element in difSet:
+
                 globaluniqueID.pop(element,None)
+
+        print("There has been {} killed structures.".format(delCounter))
 
         # Need to copy the dictionary otherwise it updates per time-step
         updateGlobal            = globaluniqueID.copy()
@@ -582,12 +611,13 @@ if __name__ == "__main__":
         print("Writing rho_{}.png".format(time))
         plt.savefig("Plots/rho_{}.png".format(time))
         plt.close()
-        print("Iteration: {} complete".format(tIter))
+        print("Iteration {} complete.".format(tIter))
+        print("##################################### \n\n")
         tIter += 1
 
 idsPerTimeStep["all"] = allIDs
 
 if args['write'] == True:
-    print("Writing the pillar statistics")
+    print("All iterations done. \n Writing the pillar statistics.")
     saveObj(idsPerTimeStep,"pillarIDs")
     saveObj(statsPerTimeStep,"pillarStatistics")

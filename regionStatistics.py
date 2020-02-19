@@ -29,6 +29,17 @@ def get_cmap(n, name='hsv'):
     return plt.cm.get_cmap(name, n)
 
 
+def removeNaNs(list):
+
+    array   = np.array(list)
+    noNaNs  = array[np.isnan(array) == False]
+
+
+    print("There were {} nans.".format(np.sum(np.isnan(array) == True)))
+
+    return noNaNs
+
+
 
 if __name__ == "__main__":
 
@@ -66,7 +77,37 @@ if __name__ == "__main__":
     plt.show()
 
 
+
+
     # pillar observable Statistics
     ###################################################################################################
 
-    pillarStats= loadObj("pillarStatistics")
+    pillarStats = loadObj("pillarStatistics")
+
+
+    area    = []
+    per     = []
+    mass    = []
+    b       = []
+    mach    = []
+    svar    = []
+    fracX   = []
+
+
+    for timeKey in np.arange(110,200):
+        for idKey in pillarStats[timeKey]:
+            area.append(pillarStats[timeKey][idKey]['area'])
+            per.append(pillarStats[timeKey][idKey]['per'])
+            mass.append(pillarStats[timeKey][idKey]['per'])
+            b.append(pillarStats[timeKey][idKey]['b'])
+            mach.append(pillarStats[timeKey][idKey]['mach'])
+            svar.append(pillarStats[timeKey][idKey]['svar'])
+            fracX.append(pillarStats[timeKey][idKey]['fracX'])
+
+
+    area    = removeNaNs(area)
+    per     = removeNaNs(per)
+    mass    = removeNaNs(mass)    
+    b       = removeNaNs(b)
+    mach    = removeNaNs(mach)
+    svar    = removeNaNs(svar)
