@@ -216,7 +216,7 @@ def getCmap(n, name='hsv'):
     return cm
 
 
-def ionFractionFilter(time,minc,maxc,minr,maxr):
+def ionFractionFilter(time,regionCoords):
     """
     DESCRIPTION:
     This function samples the region for just the neutrals. Ionised contaminents will influence the
@@ -224,15 +224,19 @@ def ionFractionFilter(time,minc,maxc,minr,maxr):
 
     INPUT:
     time        - the time index for the data (0-100)
-    minc        - the minimum y value of the bounding box for the region
-    maxc        - the maximum y value of the bounding box for the region
+    regionCoords:
     minr        - the minimum x value of the bounding box for the region
     maxr        - the maximum x value of the bounding box for the region
+    minc        - the minimum y value of the bounding box for the region
+    maxc        - the maximum y value of the bounding box for the region
 
     OUTPUT:
     maskCoords  - the coordinates of the neutrals in the region
 
     """
+
+    # read in the region coords
+    minr, maxr, minc, maxc = regionCoords
 
     # Read in the ion fraction and extract the region
     ionX        = loadObj(testDataDir + "ionX_{}".format(time-100))[:,0,:]
@@ -254,6 +258,7 @@ def ionFractionFilter(time,minc,maxc,minr,maxr):
     del ionX
 
     return maskCoords, ionisationFraction
+
 
 def computeVelocity(dens,time):
     """
@@ -293,14 +298,85 @@ def computeVelocity(dens,time):
 
     return v
 
-def computeVirial(dens, phi):
 
-    virial = 0
+def computeVirial(densRegion, regionCoordinates, velocityDispersion, time):
+    """
+    DESCRIPTION:
+
+
+    INPUT:
+    dens - the density field for computing the centre of momentum frame (g/cm^3)
+    time - the time index for the data (0-100)
+
+    OUTPUT:
+    virial - the virial parameter, \alpha  = 2E_{turb} / |E_grav|
+
+    """
+
+    # Read in region coordinates
+    minr, maxr, minc, maxc = regionCoordinates
+
+
+    # read in the gravitational field
+    phi     = loadObj(testDataDir + "virial_{}".format(time))[:,0,:] # ergs
+
+
+    # calculate the virial parameter (see Menon et al. 2020; Beattie et al. 2020)
+    virial  = sum( sum( densRegion * velocityDispersion**2 ) ) / sum( sum( densRegion * abs(phi) ) )
 
     return virial
 
-def computeSFR():
-    pass
+
+def computerFreeFallTime(densRegion):
+    """
+    DESCRIPTION:
+    Both the mean free-fall time of the region and the multi free-fall time,
+    using a spherical approximation.
+
+    INPUT:
+    densRegion  - the 2D density field of the region
+
+    OUTPUT:
+    tff         -
+    tffMean     -
+
+    """
+
+    tff     = np.sqrt( ( 3*np.pi ) / (32 * G_GravityConstant * densRegion) )            # sec
+    tffMean = np.sqrt( ( 3*np.pi ) / (32 * G_GravityConstant * np.mean(densRegion) ) )  # sec
+
+    return tff, tffMean
+
+
+def computeSFR(virial, sRegion, densRegion, regionMach, mass, tff, tffMean):
+    """
+    DESCRIPTION:
+    Compute the star formation rate (SFR) of a pillar region by calculating the critical denisty,
+    and approximating the s PDF with a Gaussian fit.
+
+    INPUT:
+
+
+    OUTPUT:
+    SFR     -
+    sCrit   -
+
+    """
+
+    phiX = 1
+
+    sCrit   = np.log( phiX * ( np.pi/5. ) * virial * regionMach**2  )
+
+    # compute the s PDF
+    # fit a gaussian
+    # integrate the gaussian from s_crit to a large vale (infinity)
+
+
+    # placeholder
+    SFR = None
+
+
+    return SFR, sCrit
 
 # Working script
 ########################################################################################################################################
@@ -452,14 +528,18 @@ if __name__ == "__main__":
             # all of the region statistics are)
             ############################################################
 
-            # calculate the dispersion within the s region
-            sRegion = s[minr:maxr,minc:maxc]
+            ## DENSITY REGIONS ##
+            # define the the s / dens region
+            regionCoords    = (minr,maxr,minc,maxc)
+            sRegion         = s[minr:maxr,minc:maxc]
+            densRegion      = dens[minr:maxr,minc:maxc]
 
 
+            ## DENSITY DISPERSION ##
             # if args['ionX'] is true then filter the densities by only using the
-            # neutrals
+            # neutrals to calculate the dispersion
             if args['ionX'] == True:
-                neutralCoords, ionisationFraction   = ionFractionFilter(time,minc,maxc,minr,maxr)
+                neutralCoords, ionisationFraction   = ionFractionFilter(time,regionCoords)
                 densDispersion                      = np.var(sRegion[neutralCoords])
 
                 #BUG TEST#
@@ -477,16 +557,20 @@ if __name__ == "__main__":
                     continue
 
 
+            ## MASS ##
             # calculate the total mass within the region rho
-            mass            = sum(sum(dens[minr:maxr,minc:maxc]))*dx*dy*dz*(Parsec)**3 * (1. / SolarMass)
+            mass            = sum(sum(densRegion))*dx*dy*dz*(Parsec)**3 * (1. / SolarMass)
 
+            ## AREA ##
             # area in parsecs^2.
             area            = region.area*dx*dy
 
+            ## PERIMETER ##
             # perimeter in parsecs
             per             = region.perimeter*dx
 
-            # velocity statistics
+
+            # calculate the velocity statistics
             if args['vel'] == True:
 
 
@@ -498,11 +582,13 @@ if __name__ == "__main__":
                 else:
                     regionVel   = v[minr:maxr,minc:maxc]
 
-
+                ## VELOCITY DISPERSION ##
                 # calculate the velocity dispersion
-                regionMach  = regionVel.std() / cs
+                velocityDispersion  = regionVel.std()
+                regionMach          = velocityDispersion / cs
 
 
+                ## TURBULENT DRIVING MODE ##
                 # calculate the forcing parameter, b
                 regionB     = np.sqrt( ( np.exp(densDispersion) - 1 ) / regionMach**2  )
 
@@ -512,6 +598,7 @@ if __name__ == "__main__":
                     continue
 
 
+            ## CENTROID COORDINATES ##
             # calculate the (mass) centroids
             centroidY ,centroidX = region.centroid
 
@@ -521,10 +608,13 @@ if __name__ == "__main__":
             centerY.append(centroidY)
             ax[1].scatter(centerX,centerY,c='b',s=1,marker='.')
 
+            # initialise an array for storing the Euclidean distances between
+            # successive time-steps
+            euclideanDis = []
 
-            euclideanDis = []   # initialise an array for storing the Euclidean distances between
-                                # successive time-steps
-            addState = 0        # initialise an on / off state for adding new keys
+
+            # initialise an on / off state for adding new keys
+            addState = 0
 
 
             # if we are on the first iteration just store all of the regions into a dictionary
