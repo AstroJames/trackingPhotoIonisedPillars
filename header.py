@@ -23,7 +23,7 @@ import skimage
 # Math
 import imageio                             # reading in image data
 import h5py                                # importing in hdf5 files
-import skimage                             # import image data
+#import skimage                             # import image data
 from skimage import measure, filters       # for drawing contours and Gaussian filters
 from scipy import fftpack, misc, optimize  # fourier transform
 from scipy.integrate import quad
