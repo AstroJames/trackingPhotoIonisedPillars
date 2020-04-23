@@ -384,14 +384,16 @@ class Pillars:
     The main pillar class where all of the calculations will go.
     """
     
-    def __init__(self,id,densDisp,driveB,ionFrac,virial,tff,SFR):
+    def __init__(self,id,densDisp,driveB,ionFrac,virial):
         self.id = id
+        self.densRegion = 
         self.densDisp = densDisp
         self.driveB = driveB
         self.ionFrac = ionFrac
         self.virial = virial
-        self.tff = tff
-        self.SFR = SFR
+        self.tff = computerFreeFallTime(self.densRegion)
+        
+    
         
         
         
