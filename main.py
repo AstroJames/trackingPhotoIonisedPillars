@@ -831,7 +831,7 @@ if __name__ == "__main__":
             print("Iteration {} complete on slice {}.".format(tIter,sliceIndex))
             print("##################################### \n\n")
 
-        np.save("mask3D_{}".format(time),mask3D,allow_pickle=False)
+        np.save("Data/mask3D_{}".format(time),mask3D,allow_pickle=False)
         # update the time step
         tIter += 1
 
@@ -843,5 +843,5 @@ idsPerTimeStep["all"] = allIDs
 # Write out all of the statistics
 if args['write'] == True:
     print("All iterations done. \n Writing the pillar statistics.")
-    saveObj(idsPerTimeStep,"pillarIDs")
-    saveObj(statsPerTimeStep,"pillarStatistics")
+    saveObj(idsPerTimeStep,"Data/pillarIDs")
+    saveObj(statsPerTimeStep,"Data/pillarStatistics")
