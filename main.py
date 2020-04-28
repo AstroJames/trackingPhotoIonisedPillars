@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 """"
 
@@ -12,8 +12,8 @@
 import py_compile
 py_compile.compile("header.py")
 from header import *
-py_compile.compile("dataHandling.py")
-from dataHandling import *
+py_compile.compile("DataHandling.py")
+from DataHandling import *
 py_compile.compile("ReferenceUnits.py")
 from ReferenceUnits import *
 from PhysicalConstantsCGS import *
@@ -327,7 +327,7 @@ def computeVirial(densRegion, regionCoordinates, velocityDispersion, time, slice
     return virial
 
 
-def computerFreeFallTime(densRegion):
+def computeFreeFallTime(densRegion):
     """
     DESCRIPTION:
     Both the mean free-fall time of the region and the multi free-fall time,
@@ -383,20 +383,27 @@ class Pillars:
     DESCRIPTION:
     The main pillar class where all of the calculations will go.
     """
-    
-    def __init__(self,id,densDisp,driveB,ionFrac,virial):
-        self.id = id
-        self.densRegion = 
-        self.densDisp = densDisp
-        self.driveB = driveB
-        self.ionFrac = ionFrac
-        self.virial = virial
-        self.tff = computerFreeFallTime(self.densRegion)
-        
-    
-        
-        
-        
+
+    def __init__(self,id,densRegion,densDisp,driveB,ionFrac):
+        self.id         = id
+        self.densRegion = densRegion
+        self.densDisp   = densDisp
+        self.driveB     = driveB
+        self.ionFrac    = ionFrac
+
+    def ComputeFreeFallTime(self):
+        tff, tffMean    = computeFreeFallTime(self.densRegion)
+        self.tff        = tff
+        self.tffMean    = tffMean
+
+    def ComputeVirial():
+        pass
+
+
+
+
+
+
 
 # Working script
 ########################################################################################################################################
@@ -408,11 +415,11 @@ if __name__ == "__main__":
     dt                  = 10    # kyr
     Amin                = 25    # dxdy
     cs                  = 0.28  # km /s, sound-speed for the neutral gas
-    testDataDir         = "/Volumes/JamesBe/pillarTracking/testData/"
-    writeDir            = "/Users/jamesbeattie/Documents/Research/2020/pillarTracking/PythonScripts/trackingPhotoIonisedPillars/"
+    testDataDir         = "./testData/"
+    writeDir            = "./Data/"
     sThreshold          = 0.25   # density threshold
     globaluniqueID      = {}    # initalise the global ID dictionary
-    times               = np.arange(50,51)#args['tend'])     # the times to run the code on
+    times               = np.arange(50,52)#args['tend'])     # the times to run the code on
     timesArr            = []            # a list for storing the different times for plotting
     centerX             = []            # the x coordiante of the centroid
     centerY             = []            # the y coordinate of the centroid
@@ -438,420 +445,420 @@ if __name__ == "__main__":
 
     # for each piece of data
     for time in times:
-        
+
         # Initialise a 3D cube for a mask
         mask3D = np.zeros([200,200,200])
-        
+
         # for each slice through the 3D field
-        for sliceIndex in sliceIndexes:
-            
-            print("Starting iteration on file number {}".format(time))
-            print("#####################################")
+        #for sliceIndex in sliceIndexes:
+
+        print("Starting iteration on file number {}".format(time))
+        print("#####################################")
 
 
-            # read in the Data and extract into a np.array
-            dens        = loadObj(testDataDir + "rho_{}".format(time))
-        
-            # take a slice through (x,y,z=0)
-            dens    = dens[:,sliceIndex,:] # g / cm^3
-            s       = np.log(dens / dens.mean())
+        # read in the Data and extract into a np.array
+        dens        = loadObj(testDataDir + "rho_{}".format(time))
+
+        # take a slice through (x,y,z=0)
+        dens    = dens[:,sliceIndex,:] # g / cm^3
+        s       = np.log(dens / dens.mean())
 
 
-            # include the velocity information if the velocity argument
-            # is true
-            if args['vel'] == True:
-                v = computeVelocity(dens,time,sliceIndex) * 1e-5 # km / s
+        # include the velocity information if the velocity argument
+        # is true
+        if args['vel'] == True:
+            v = computeVelocity(dens,time,sliceIndex) * 1e-5 # km / s
 
 
-            # just a quick check of the field
-            if args['viz'] == "field":
-                f, ax = plt.subplots(dpi=200)
-                ax.imshow(s,cmap=plt.cm.plasma)
-                ax.set_axis_off()
-                plt.show()
+        # just a quick check of the field
+        if args['viz'] == "field":
+            f, ax = plt.subplots(dpi=200)
+            ax.imshow(s,cmap=plt.cm.plasma)
+            ax.set_axis_off()
+            plt.show()
 
 
-            # turn the time into the proper time by adding 100.
-            #time        += 100
+        # turn the time into the proper time by adding 100.
+        #time        += 100
 
 
-            # Perform Hough transfrom
-            x, y, xMin, xMax, sMask = houghTransform(s,sThreshold)
+        # Perform Hough transfrom
+        x, y, xMin, xMax, sMask = houghTransform(s,sThreshold)
 
 
-            # Now we have isolated the mixing layer so we can pick out the region in our
-            # simulation to extract the pillars
-            x0  = int(xMin)
-            x1  = int(xMax)
-            y0  = int(y[0])
-            y1  = int(y[-1])
+        # Now we have isolated the mixing layer so we can pick out the region in our
+        # simulation to extract the pillars
+        x0  = int(xMin)
+        x1  = int(xMax)
+        y0  = int(y[0])
+        y1  = int(y[-1])
 
 
-            # initalise a new plot for the s map and feature map
-            f, ax   = plt.subplots(1,2,figsize=(9,4),dpi=200)
-            plt.subplots_adjust(left=0.00, bottom=0.05, right=0.95, top=0.95, wspace=-0.05, hspace=0.05)
-            ax[0].imshow(sMask,cmap=plt.cm.plasma)
-            rect = patches.Rectangle((x0,0),x1 - x0, s.shape[0],linewidth=1,edgecolor='r',facecolor='r',alpha=0.2);
-            ax[0].plot((x0 + (xMax - xMin)/2.,x0 + (xMax - xMin)/2.),(0,s.shape[0]), '--r',linewidth=0.5)
-            ax[0].annotate(r"$\xi = s > s_{\text{max}}/2$", xy=(labelDx,labelDy), xycoords = xyCoords,color="yellow",fontsize=fs-2)
-            ax[0].annotate(r"$(\xi \ominus \square ) \oplus \square = $" + " {}".format(openFactor*dx) + r"$\,\text{pc}$", xy=(labelDx,labelDy-0.06), xycoords = 'axes fraction',color="yellow",fontsize=fs-2)
-            ax[0].annotate(r"Hough fit", xy=(labelDx-0.45,labelDy), xycoords = xyCoords,color="blue",fontsize=fs-2)
-            ax[0].annotate(r"$\mathcal{W}_{\Delta x} = $" + " {}".format(np.round(windowSize*2*dx,1)) + r"$\,\text{pc}$", xy=(labelDx-0.45,labelDy-0.06), xycoords = xyCoords,color="red",fontsize=fs-2)
-            ax[0].annotate(r"$\mathcal{A} \geq \mathcal{A}_{\text{min}} = $" + " {}".format(np.round(Amin*dx*dy,3)) + r"$\,\text{pc}^2$", xy=(labelDx,0.03), xycoords = xyCoords,color="yellow",fontsize=fs-2)
-            ax[0].add_patch(rect)
-            ax[0].plot(x,y, '-b')
-            ax[0].set_ylim((s.shape[0], 0))
-            ax[0].set_axis_off()
+        # initalise a new plot for the s map and feature map
+        f, ax   = plt.subplots(1,2,figsize=(9,4),dpi=200)
+        plt.subplots_adjust(left=0.00, bottom=0.05, right=0.95, top=0.95, wspace=-0.05, hspace=0.05)
+        ax[0].imshow(sMask,cmap=plt.cm.plasma)
+        rect = patches.Rectangle((x0,0),x1 - x0, s.shape[0],linewidth=1,edgecolor='r',facecolor='r',alpha=0.2);
+        ax[0].plot((x0 + (xMax - xMin)/2.,x0 + (xMax - xMin)/2.),(0,s.shape[0]), '--r',linewidth=0.5)
+        ax[0].annotate(r"$\xi = s > s_{\text{max}}/2$", xy=(labelDx,labelDy), xycoords = xyCoords,color="yellow",fontsize=fs-2)
+        ax[0].annotate(r"$(\xi \ominus \square ) \oplus \square = $" + " {}".format(openFactor*dx) + r"$\,\text{pc}$", xy=(labelDx,labelDy-0.06), xycoords = 'axes fraction',color="yellow",fontsize=fs-2)
+        ax[0].annotate(r"Hough fit", xy=(labelDx-0.45,labelDy), xycoords = xyCoords,color="blue",fontsize=fs-2)
+        ax[0].annotate(r"$\mathcal{W}_{\Delta x} = $" + " {}".format(np.round(windowSize*2*dx,1)) + r"$\,\text{pc}$", xy=(labelDx-0.45,labelDy-0.06), xycoords = xyCoords,color="red",fontsize=fs-2)
+        ax[0].annotate(r"$\mathcal{A} \geq \mathcal{A}_{\text{min}} = $" + " {}".format(np.round(Amin*dx*dy,3)) + r"$\,\text{pc}^2$", xy=(labelDx,0.03), xycoords = xyCoords,color="yellow",fontsize=fs-2)
+        ax[0].add_patch(rect)
+        ax[0].plot(x,y, '-b')
+        ax[0].set_ylim((s.shape[0], 0))
+        ax[0].set_axis_off()
 
 
-            # Store the 2D mask
-            mask3D[:,sliceIndex,:] = sMask
-
-            
-            # filter on the densities within the small regions and then create a threshold
-            sML         = s[:,x0:x1]
-            sML_mask    = sML > sML.max()*sThreshold
-            sML_mask    = np.pad(sML_mask,((0,0),(x0,s.shape[1]-x1)),mode='constant')
-            allLabels   = labelCreator(sML_mask,openFactor)
+        # Store the 2D mask
+        mask3D[:,sliceIndex,:] = sMask
 
 
-            # take the first values for the colourmap bounds
-            if tIter == 0:
-                vMax = s.max()
-                vMin = s.min()
-
-            # create the s (slice) map with time annotations
-            plot    = ax[1].imshow(s,cmap=plt.cm.plasma,vmin=vMin,vmax=vMax)
-            ax[1].annotate(r"$t = ${}".format(time) + r"$dt$", xy=(labelDx + 0.275-eps,labelDy-eps), xycoords = xyCoords,color="white",fontsize=fs-2)
-            ax[1].annotate(r"$t = ${}".format(time) + r"$dt$", xy=(labelDx + 0.275,labelDy), xycoords = xyCoords,color="black",fontsize=fs-2)
-            ax[1].set_axis_off()
-            cb = plt.colorbar(plot)
-            cb.set_label(r"$s = \ln(\rho/\rho_0)$",fontsize=16)
+        # filter on the densities within the small regions and then create a threshold
+        sML         = s[:,x0:x1]
+        sML_mask    = sML > sML.max()*sThreshold
+        sML_mask    = np.pad(sML_mask,((0,0),(x0,s.shape[1]-x1)),mode='constant')
+        allLabels   = labelCreator(sML_mask,openFactor)
 
 
-            localuniqueID   = {}    # initialise a unique ID for each centroid, for this timestep
-            statsPerID      = {}    # initialise a dictionary for the stats, for each region
-            regionCounter   = 0     # initialise a region counter
+        # take the first values for the colourmap bounds
+        if tIter == 0:
+            vMax = s.max()
+            vMin = s.min()
+
+        # create the s (slice) map with time annotations
+        plot    = ax[1].imshow(s,cmap=plt.cm.plasma,vmin=vMin,vmax=vMax)
+        ax[1].annotate(r"$t = ${}".format(time) + r"$dt$", xy=(labelDx + 0.275-eps,labelDy-eps), xycoords = xyCoords,color="white",fontsize=fs-2)
+        ax[1].annotate(r"$t = ${}".format(time) + r"$dt$", xy=(labelDx + 0.275,labelDy), xycoords = xyCoords,color="black",fontsize=fs-2)
+        ax[1].set_axis_off()
+        cb = plt.colorbar(plot)
+        cb.set_label(r"$s = \ln(\rho/\rho_0)$",fontsize=16)
 
 
-            # initialise a dictionary for identfiying what IDs have been used up
-            # through the region iterations
-            possibleKeys = globaluniqueID.copy()
+        localuniqueID   = {}    # initialise a unique ID for each centroid, for this timestep
+        statsPerID      = {}    # initialise a dictionary for the stats, for each region
+        regionCounter   = 0     # initialise a region counter
 
 
-            # for each disjoint region (i.e. pillar)
-            print("Labelling pillars.")
-            for region in measure.regionprops(allLabels):
+        # initialise a dictionary for identfiying what IDs have been used up
+        # through the region iterations
+        possibleKeys = globaluniqueID.copy()
 
 
-                # skip small regions
-                if region.area <= Amin:
+        # for each disjoint region (i.e. pillar)
+        print("Labelling pillars.")
+        for region in measure.regionprops(allLabels):
+
+
+            # skip small regions
+            if region.area <= Amin:
+                continue
+
+
+            # draw rectangle around segmented high-density regions
+            minr, minc, maxr, maxc = region.bbox
+            rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr,fill=False, edgecolor='red', linewidth=2)
+            ax[1].add_patch(rect)
+
+            ############################################################
+            # calculate everything from the region (i.e. this is where
+            # all of the region statistics are)
+            ############################################################
+
+            ## DENSITY REGIONS ##
+            # define the the s / dens region
+            regionCoords    = (minr,maxr,minc,maxc)
+            sRegion         = s[minr:maxr,minc:maxc]
+            densRegion      = dens[minr:maxr,minc:maxc]
+
+
+            ## DENSITY DISPERSION ##
+            # if args['ionX'] is true then filter the densities by only using the
+            # neutrals to calculate the dispersion
+            if args['ionX'] == True:
+                neutralCoords, ionisationFraction   = ionFractionFilter(time,regionCoords,sliceIndex)
+                densDispersion                      = np.var(sRegion[neutralCoords])
+
+                #BUG TEST#
+                if np.isnan(densDispersion) == True:
+                    print("Density dispersion is nan")
                     continue
 
 
-                # draw rectangle around segmented high-density regions
-                minr, minc, maxr, maxc = region.bbox
-                rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr,fill=False, edgecolor='red', linewidth=2)
-                ax[1].add_patch(rect)
+            else:
+                densDispersion  = np.var(sRegion)
 
-                ############################################################
-                # calculate everything from the region (i.e. this is where
-                # all of the region statistics are)
-                ############################################################
-
-                ## DENSITY REGIONS ##
-                # define the the s / dens region
-                regionCoords    = (minr,maxr,minc,maxc)
-                sRegion         = s[minr:maxr,minc:maxc]
-                densRegion      = dens[minr:maxr,minc:maxc]
+                #BUG TEST#
+                if np.isnan(densDispersion) == True:
+                    print("Density dispersion is nan")
+                    continue
 
 
-                ## DENSITY DISPERSION ##
-                # if args['ionX'] is true then filter the densities by only using the
-                # neutrals to calculate the dispersion
+            ## MASS ##
+            # calculate the total mass within the region rho
+            mass            = sum(sum(densRegion))*dx*dy*dz*(Parsec)**3 * (1. / SolarMass)
+
+            ## AREA ##
+            # area in parsecs^2.
+            area            = region.area*dx*dy
+
+            ## PERIMETER ##
+            # perimeter in parsecs
+            per             = region.perimeter*dx
+
+
+            # calculate the velocity statistics
+            if args['vel'] == True:
+
+
+                # select the region in the mag v field either
+                # using the regular bounding box or the neutral
+                # coorindates
                 if args['ionX'] == True:
-                    neutralCoords, ionisationFraction   = ionFractionFilter(time,regionCoords,sliceIndex)
-                    densDispersion                      = np.var(sRegion[neutralCoords])
-
-                    #BUG TEST#
-                    if np.isnan(densDispersion) == True:
-                        print("Density dispersion is nan")
-                        continue
-
-
+                    regionVel   = v[neutralCoords]
                 else:
-                    densDispersion  = np.var(sRegion)
+                    regionVel   = v[minr:maxr,minc:maxc]
 
-                    #BUG TEST#
-                    if np.isnan(densDispersion) == True:
-                        print("Density dispersion is nan")
-                        continue
-
-
-                ## MASS ##
-                # calculate the total mass within the region rho
-                mass            = sum(sum(densRegion))*dx*dy*dz*(Parsec)**3 * (1. / SolarMass)
-
-                ## AREA ##
-                # area in parsecs^2.
-                area            = region.area*dx*dy
-
-                ## PERIMETER ##
-                # perimeter in parsecs
-                per             = region.perimeter*dx
+                ## VELOCITY DISPERSION ##
+                # calculate the velocity dispersion
+                velocityDispersion  = regionVel.std()
+                regionMach          = velocityDispersion / cs
 
 
-                # calculate the velocity statistics
+                ## TURBULENT DRIVING MODE ##
+                # calculate the forcing parameter, b
+                regionB     = np.sqrt( ( np.exp(densDispersion) - 1 ) / regionMach**2  )
+
+                #BUG TEST#
+                if np.isnan(regionB) == True:
+                    print("b is nan")
+                    continue
+
+
+            ## CENTROID COORDINATES ##
+            # calculate the (mass) centroids
+            centroidY ,centroidX = region.centroid
+
+
+            # store the centroids and the time for plotting
+            centerX.append(centroidX)
+            centerY.append(centroidY)
+            ax[1].scatter(centerX,centerY,c='b',s=1,marker='.')
+
+            # initialise an array for storing the Euclidean distances between
+            # successive time-steps
+            euclideanDis = []
+
+
+            # initialise an on / off state for adding new keys
+            addState = 0
+
+
+            # if we are on the first iteration just store all of the regions into a dictionary
+            # and give a unique ID
+            if tIter == 0:
+                globaluniqueID[regionCounter]  = {'x':centroidX,'y':centroidY}
+
+                # add to the local dictionary the various interesting pillarStatistics
+                # one for if the
                 if args['vel'] == True:
+                    statsPerID[regionCounter]  = {'mass':mass,
+                                                  'svar':densDispersion,
+                                                  'area':area,
+                                                  'per':per,
+                                                  'mach':regionMach,
+                                                  'b':regionB,
+                                                  'fracX':ionisationFraction}
+                else:
+                    statsPerID[regionCounter]  = {'mass':mass,
+                                                  'svar':densDispersion,
+                                                  'area':area,
+                                                  'per':per,
+                                                  'fracX':ionisationFraction}
+
+                # add a number annotation to each of the centroids
+                ax[1].text(centroidX,centroidY,str(regionCounter),fontsize=16)
 
 
-                    # select the region in the mag v field either
-                    # using the regular bounding box or the neutral
-                    # coorindates
-                    if args['ionX'] == True:
-                        regionVel   = v[neutralCoords]
-                    else:
-                        regionVel   = v[minr:maxr,minc:maxc]
-
-                    ## VELOCITY DISPERSION ##
-                    # calculate the velocity dispersion
-                    velocityDispersion  = regionVel.std()
-                    regionMach          = velocityDispersion / cs
+            # if not the first iteration (time)
+            else:
 
 
-                    ## TURBULENT DRIVING MODE ##
-                    # calculate the forcing parameter, b
-                    regionB     = np.sqrt( ( np.exp(densDispersion) - 1 ) / regionMach**2  )
-
-                    #BUG TEST#
-                    if np.isnan(regionB) == True:
-                        print("b is nan")
-                        continue
+                # for each of the possible keys (reminder we are looking at a single region)
+                # in the previous time step
+                for key in possibleKeys.keys():
 
 
-                ## CENTROID COORDINATES ##
-                # calculate the (mass) centroids
-                centroidY ,centroidX = region.centroid
+                    # get the centroid coordinates from the previous time-step
+                    centroidXOld = globaluniqueID[key]['x']
+                    centroidYOld = globaluniqueID[key]['y']
 
 
-                # store the centroids and the time for plotting
-                centerX.append(centroidX)
-                centerY.append(centroidY)
-                ax[1].scatter(centerX,centerY,c='b',s=1,marker='.')
-
-                # initialise an array for storing the Euclidean distances between
-                # successive time-steps
-                euclideanDis = []
+                    # calculate the Euclidean distance between each centroid pair
+                    euclideanDis.append(np.hypot( centroidX - centroidXOld,centroidY - centroidYOld))
 
 
-                # initialise an on / off state for adding new keys
-                addState = 0
+                # extract all of the keys from the dictionary as integers
+                keysAsInts  = list(map(int,possibleKeys.keys()))
 
 
-                # if we are on the first iteration just store all of the regions into a dictionary
-                # and give a unique ID
-                if tIter == 0:
-                    globaluniqueID[regionCounter]  = {'x':centroidX,'y':centroidY}
+                # I am popping keys out of the dictionary as I find them... so
+                # if all of the possible regions are still there then move to the next iteration
+                if keysAsInts == []:
+                    print("All pillars were found from the previous time-step.")
+                    continue # to the next pillar
 
-                    # add to the local dictionary the various interesting pillarStatistics
-                    # one for if the
+
+                # Calculate the minimum distance between pillars between two
+                # concurrent time-steps
+
+                """
+                TODO:
+                Add mass constraints ?
+                Add mergers and splits
+
+                """
+
+                # if there is just one close (below minDisTol) pillar in the next time-step
+                #if np.sum(np.array(euclideanDis) < minDisTol) == 1:
+                minDis      = min(np.array(euclideanDis))
+                minKey      = keysAsInts[euclideanDis.index(min(euclideanDis))]
+                # if there are more lose pillars
+                #else:
+                    # need the mass of the newly labelled pillars
+
+
+
+                # if it is less than some minimum distance tolerance
+                if minDis < minDisTol:
+
+
+                    # if it is, then store the value of that centroid using the old key
+                    # which is the "tracking" part of this code
+                    globaluniqueID[minKey]  = {'x':centroidX,'y':centroidY}
+
+
+                    # update the dictionary for single ID
                     if args['vel'] == True:
-                        statsPerID[regionCounter]  = {'mass':mass,
-                                                      'svar':densDispersion,
-                                                      'area':area,
-                                                      'per':per,
-                                                      'mach':regionMach,
-                                                      'b':regionB,
-                                                      'fracX':ionisationFraction}
+                        statsPerID[minKey]      = {'mass':mass,
+                                                   'svar':densDispersion,
+                                                   'area':area,
+                                                   'per':per,
+                                                   'mach':regionMach,
+                                                   'b':regionB,
+                                                   'fracX':ionisationFraction}
                     else:
-                        statsPerID[regionCounter]  = {'mass':mass,
-                                                      'svar':densDispersion,
-                                                      'area':area,
-                                                      'per':per,
-                                                      'fracX':ionisationFraction}
+                        statsPerID[minKey]      = {'mass':mass,
+                                                   'svar':densDispersion,
+                                                   'area':area,
+                                                   'per':per,
+                                                   'fracX':ionisationFraction}
+
 
                     # add a number annotation to each of the centroids
-                    ax[1].text(centroidX,centroidY,str(regionCounter),fontsize=16)
+                    ax[1].text(centroidX,centroidY,minKey,fontsize=16)
+
+                    # get rid of the key that we found (i.e.) it is no longer a
+                    # possible key for the rest of the regions to be
+                    possibleKeys.pop(minKey,None)
 
 
-                # if not the first iteration (time)
+                    # get rid of it from the local dictionary too.
+                    localuniqueID[minKey] = None
+
+
+                    # update an "addState", which really means that no candidates have been found
+                    # and we need to add a new key
                 else:
+                    addState = 1
 
 
-                    # for each of the possible keys (reminder we are looking at a single region)
-                    # in the previous time step
-                    for key in possibleKeys.keys():
+                # if you get to the end of the keys with nothing satisfying then we
+                # will need to add a new key
+                # a switch that makes a new ID be incorporated into a set.
+                if addState == 1:
 
 
-                        # get the centroid coordinates from the previous time-step
-                        centroidXOld = globaluniqueID[key]['x']
-                        centroidYOld = globaluniqueID[key]['y']
+                    # create a new key that is one larger than the previous max
+                    newKey                 = max(list(map(int,globaluniqueID.keys()))) + 1
 
 
-                        # calculate the Euclidean distance between each centroid pair
-                        euclideanDis.append(np.hypot( centroidX - centroidXOld,centroidY - centroidYOld))
+                    # add it to the global centroid dictionary
+                    globaluniqueID[newKey] = {'x':centroidX,'y':centroidY}
 
-
-                    # extract all of the keys from the dictionary as integers
-                    keysAsInts  = map(int,possibleKeys.keys())
-
-
-                    # I am popping keys out of the dictionary as I find them... so
-                    # if all of the possible regions are still there then move to the next iteration
-                    if keysAsInts == []:
-                        print("All pillars were found from the previous time-step.")
-                        continue # to the next pillar
-
-
-                    # Calculate the minimum distance between pillars between two
-                    # concurrent time-steps
-                    
-                    """
-                    TODO:
-                    Add mass constraints ?
-                    Add mergers and splits
-                    
-                    """
-                    
-                    # if there is just one close (below minDisTol) pillar in the next time-step
-                    #if np.sum(np.array(euclideanDis) < minDisTol) == 1:
-                    minDis      = min(np.array(euclideanDis))
-                    minKey      = keysAsInts[euclideanDis.index(min(euclideanDis))]
-                    # if there are more lose pillars
-                    #else:
-                        # need the mass of the newly labelled pillars
-                        
-                    
-
-                    # if it is less than some minimum distance tolerance
-                    if minDis < minDisTol:
-
-
-                        # if it is, then store the value of that centroid using the old key
-                        # which is the "tracking" part of this code
-                        globaluniqueID[minKey]  = {'x':centroidX,'y':centroidY}
-
-
-                        # update the dictionary for single ID
-                        if args['vel'] == True:
-                            statsPerID[minKey]      = {'mass':mass,
-                                                       'svar':densDispersion,
-                                                       'area':area,
-                                                       'per':per,
-                                                       'mach':regionMach,
-                                                       'b':regionB,
-                                                       'fracX':ionisationFraction}
-                        else:
-                            statsPerID[minKey]      = {'mass':mass,
-                                                       'svar':densDispersion,
-                                                       'area':area,
-                                                       'per':per,
-                                                       'fracX':ionisationFraction}
-
-
-                        # add a number annotation to each of the centroids
-                        ax[1].text(centroidX,centroidY,minKey,fontsize=16)
-
-                        # get rid of the key that we found (i.e.) it is no longer a
-                        # possible key for the rest of the regions to be
-                        possibleKeys.pop(minKey,None)
-
-
-                        # get rid of it from the local dictionary too.
-                        localuniqueID[minKey] = None
-
-
-                        # update an "addState", which really means that no candidates have been found
-                        # and we need to add a new key
+                    # update the dictionary for single ID
+                    if args['vel'] == True:
+                        statsPerID[newKey]      = {'mass':mass,
+                                                   'svar':densDispersion,
+                                                   'area':area,
+                                                   'per':per,
+                                                   'mach':regionMach,
+                                                   'b':regionB,
+                                                   'fracX':ionisationFraction}
                     else:
-                        addState = 1
+                        statsPerID[newKey]     = {'mass':mass,
+                                                  'svar':densDispersion,
+                                                   'area':area,
+                                                   'per':per,
+                                                   'fracX':ionisationFraction}
 
 
-                    # if you get to the end of the keys with nothing satisfying then we
-                    # will need to add a new key
-                    # a switch that makes a new ID be incorporated into a set.
-                    if addState == 1:
+                    # add a number annotation to each of the centroids
+                    ax[1].text(centroidX,centroidY,newKey,fontsize=16)
 
 
-                        # create a new key that is one larger than the previous max
-                        newKey                 = max(map(int,globaluniqueID.keys())) + 1
+            # update the region counter
+            regionCounter +=1
 
 
-                        # add it to the global centroid dictionary
-                        globaluniqueID[newKey] = {'x':centroidX,'y':centroidY}
-
-                        # update the dictionary for single ID
-                        if args['vel'] == True:
-                            statsPerID[newKey]      = {'mass':mass,
-                                                       'svar':densDispersion,
-                                                       'area':area,
-                                                       'per':per,
-                                                       'mach':regionMach,
-                                                       'b':regionB,
-                                                       'fracX':ionisationFraction}
-                        else:
-                            statsPerID[newKey]     = {'mass':mass,
-                                                      'svar':densDispersion,
-                                                       'area':area,
-                                                       'per':per,
-                                                       'fracX':ionisationFraction}
+        # print how many distinct regions there are
+        print("There has been {} distinct structures identified.".format(regionCounter))
 
 
-                        # add a number annotation to each of the centroids
-                        ax[1].text(centroidX,centroidY,newKey,fontsize=16)
+        # a counter for recording the elements that are being deleted
+        delCounter = 0
 
 
-                # update the region counter
-                regionCounter +=1
+        # Now remove keys that did NOT get popped from the possible keys
+        # so they never they never satisfied the minimum Euclidean distance condition
+        difSet = set(list(map(int,possibleKeys.keys())))
+        if difSet != set():
 
 
-            # print how many distinct regions there are
-            print("There has been {} distinct structures identified.".format(regionCounter))
+            # update the delete counter for output
+            delCounter += 1
 
 
-            # a counter for recording the elements that are being deleted
-            delCounter = 0
+            # update the global dictionary, getting rid of keys that correspond to
+            # pillars that have died
+            for element in difSet:
+
+                globaluniqueID.pop(element,None)
+
+        print("There has been {} killed structures.".format(delCounter))
 
 
-            # Now remove keys that did NOT get popped from the possible keys
-            # so they never they never satisfied the minimum Euclidean distance condition
-            difSet = set(map(int,possibleKeys.keys()))
-            if difSet != set():
+        # Need to copy the dictionary otherwise it updates per time-step
+        updateGlobal            = globaluniqueID.copy()
+        idsPerTimeStep[time]    = updateGlobal
 
 
-                # update the delete counter for output
-                delCounter += 1
+        # Need to copy the dictionary otherwise it updates per time-step
+        updateStats             = statsPerID.copy()
+        allIDs                  += map(int,globaluniqueID.keys())
+        statsPerTimeStep[time]  = updateStats
 
 
-                # update the global dictionary, getting rid of keys that correspond to
-                # pillars that have died
-                for element in difSet:
+        # final plotting configuration
+        plt.tight_layout()
+        print("Writing rho_{}_{}.png".format(time,sliceIndex))
+        plt.savefig("Plots/rho_{}_{}.png".format(time,sliceIndex))
+        plt.close()
+        print("Iteration {} complete on slice {}.".format(tIter,sliceIndex))
+        print("##################################### \n\n")
 
-                    globaluniqueID.pop(element,None)
-
-            print("There has been {} killed structures.".format(delCounter))
-
-
-            # Need to copy the dictionary otherwise it updates per time-step
-            updateGlobal            = globaluniqueID.copy()
-            idsPerTimeStep[time]    = updateGlobal
-
-
-            # Need to copy the dictionary otherwise it updates per time-step
-            updateStats             = statsPerID.copy()
-            allIDs                  += map(int,globaluniqueID.keys())
-            statsPerTimeStep[time]  = updateStats
-
-
-            # final plotting configuration
-            plt.tight_layout()
-            print("Writing rho_{}_{}.png".format(time,sliceIndex))
-            plt.savefig("Plots/rho_{}_{}.png".format(time,sliceIndex))
-            plt.close()
-            print("Iteration {} complete on slice {}.".format(tIter,sliceIndex))
-            print("##################################### \n\n")
-
-        np.save("Data/mask3D_{}".format(time),mask3D,allow_pickle=False)
+        #np.save(writeDir + "mask3D_{}".format(time),mask3D,allow_pickle=False)
         # update the time step
         tIter += 1
 
@@ -863,5 +870,5 @@ idsPerTimeStep["all"] = allIDs
 # Write out all of the statistics
 if args['write'] == True:
     print("All iterations done. \n Writing the pillar statistics.")
-    saveObj(idsPerTimeStep,"Data/pillarIDs")
-    saveObj(statsPerTimeStep,"Data/pillarStatistics")
+    saveObj(idsPerTimeStep,writeDir + "pillarIDs")
+    saveObj(statsPerTimeStep,writeDir + "pillarStatistics")

@@ -1,5 +1,5 @@
 # Tracking High-Density Pillars
-An automated system for tracking high-density, neutral HII pillars, previously studied in Menon, Federrath & Kuiper, 2020 (under-review).
+An automated system for tracking high-density, neutral HII pillars, previously studied in Menon et al. (2020).
 
 The pillars are created using the PLUTO code, http://plutocode.ph.unito.it .
 
@@ -14,9 +14,12 @@ Currently the code is implemented in 2D, but the intention is to generalise the 
 * log density dispersion
 * area
 * perimeter
+* ionised gas fraction
 * rms turbulent Mach number
 * turbulent driving parameter
-* star formation potential
+* free-fall time
+* virial parameter
+* star formation rate
 
 ## A snap-shot of the detection algorithm working at t= 0
 ![t=0](/Pics/gitPic1.png)

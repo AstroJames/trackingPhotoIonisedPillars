@@ -10,7 +10,6 @@
 ############################################################################################################################################
 # Data handling
 import os
-import yt
 import h5py
 import numpy as np
 import argparse
@@ -38,7 +37,7 @@ from matplotlib import rc, ticker, colors  # nicer text in matplotlib and custum
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import matplotlib.patheffects as PathEffects
 mpl.rcParams['text.usetex'] = True
-mpl.rcParams['text.latex.preamble'] = [r'\usepackage{amsmath}',r'\usepackage{mathrsfs}','\usepackage{amssymb}']
+mpl.rcParams['text.latex.preamble'] = [r'\usepackage{amsmath}',r'\usepackage{mathrsfs}',r'\usepackage{amssymb}']
 rc('font', **{'family': 'DejaVu Sans','size':16})
 rc('text', usetex=True)
 mpl.rcParams['xtick.direction'] = 'in'
