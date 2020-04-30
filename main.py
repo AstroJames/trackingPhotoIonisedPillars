@@ -55,123 +55,6 @@ run main -tend 11 -write True -clear True -vel True -ionX True
 # Functions
 ############################################################################################################################################
 
-def houghTransform(s, sThreshold):
-    """
-    DESCRIPTION:
-    This function computes the hough transform, for determining the shock front.
-    see: https://scikit-image.org/docs/dev/auto_examples/edges/plot_line_hough_transform.html
-
-    INPUT:
-    s           - the 2D density field ln(\rho/\rho_0)
-    sThreshold  - the threshold for the field. Densities above this threshold
-                will be used to identify the shock front
-
-    OUTPUT:
-    x       - x coordinate of the Hough transform
-    y       - y coordinate of the Hough transform
-    xMin    - x coordinate of the window around the shock front
-    yMin    - y coordinate of the window around the shock front
-    sMask   - the mask, s.max() * sThreshold (for checking)
-
-    """
-
-    print("Calculating the Hough Transform.")
-    # Create a mask on s for detecting the ionisation front
-    sMask = s > s.max()*sThreshold
-
-    # run a hough transform on the masked density data
-    dtheta = 0.05 # the d\theta around a vertical line approximation for the ion. front.
-    # create a sample of test angles close to a vertical line
-    tested_angles = np.linspace(np.pi + dtheta, np.pi - dtheta, 90)
-
-    # run the Hough transform
-    origin          = np.array((0, sMask.shape[1]))            # define the origin coordinate
-    h, theta, d     = hough_line(sMask, theta=tested_angles)   # define the H. transform
-
-    # pick the most dominant line from the H. transform
-    hspace, angle, dist  = hough_line_peaks(h, theta, d)             # extract param. values
-    y0, y1          = (dist[0] - origin * np.cos(angle[0])) / np.sin(angle[0])
-
-    # pick out the cooridinates in the density field from the line and create a window
-    x , y       = sampleHough(origin,[y0, y1])
-    xMin        = x - windowSize
-    xMax        = x + windowSize
-
-    # Just taking a single value at the for the window
-    xMin = xMin[0]
-    xMax = xMax[0]
-
-    # Make sure the window size isn't larger than the actual data domain
-    if xMin < 0:
-        xMin = 0
-    elif xMin > sMask.shape[0]-1:
-        xMin = sMask.shape[0]-1
-    # and for xMax too
-    if xMax < 0:
-        xMax = 0
-    elif xMax > sMask.shape[0]-1:
-        xMax = sMask.shape[0] - 1
-
-    return x, y, xMin, xMax, sMask
-
-
-def sampleHough(xValues, yValues):
-    """
-    DESCRIPTION:
-    This function takes the most dominant line from the Hough transform data.
-    see: https://scikit-image.org/docs/dev/auto_examples/edges/plot_line_hough_transform.html
-
-    INPUT:
-    xValues - the x values from the houghTransform function
-    yValues - the y values from the houghTransform function
-
-    OUTPUT:
-    x       - the x values for the most dominant line
-    y       - the y values for the most dominant line
-
-    """
-
-    print("Extracting the most dominant line from the Hough transform.")
-    # x values
-    x0 = xValues[0]
-    x1 = xValues[1]
-
-    # y values
-    y0 = yValues[0]
-    y1 = yValues[1]
-
-    # parameters of the line
-    m =  ( y1 - y0 ) / ( x1 -  x0 )
-    c = y0 - m*x0
-
-    # sample the space between 0 and the dimension of the
-    # field
-    x = np.linspace(x0,x1,10000)
-
-    # create the coordinates
-    y = m*x + c
-
-    # Now downsample the coordinates to only
-    # include coordinates in the density field domain
-
-    # Create some empty arrays
-    xIn = []
-    yIn = []
-    iterCount = 0
-    for xCoord, yCoord in zip(x,y):
-        # only take those coordinates that are within the
-        # x0 and x1 space.
-        if yCoord >= x0 and yCoord <= x1:
-            xIn.append(xCoord)
-            yIn.append(yCoord)
-
-    # make some new arrays and return
-    x = np.array(xIn)
-    y = np.array(yIn)
-
-    return x, y
-
-
 def labelCreator(dens, openFactor):
     """
     DESCRIPTION:
@@ -277,9 +160,9 @@ def computeVelocity(dens, time, sliceIndex):
 
     print("Computing the turbulent component of the velocity field.")
     # construct the magnitude of v field
-    vx = loadObj(testDataDir + "vx_{}".format(time))[:,sliceIndex,:] # cm /s
-    vy = loadObj(testDataDir + "vy_{}".format(time))[:,sliceIndex,:] # cm /s
-    vz = loadObj(testDataDir + "vz_{}".format(time))[:,sliceIndex,:] # cm /s
+    vx = loadObj(readDir + "vx_{}".format(time))[:,sliceIndex,:] # cm /s
+    vy = loadObj(readDir + "vy_{}".format(time))[:,sliceIndex,:] # cm /s
+    vz = loadObj(readDir + "vz_{}".format(time))[:,sliceIndex,:] # cm /s
 
     # calculate the centre of mass velocity vector
     vx_cm = sum(sum(vx * dens)) / sum(sum(dens))
@@ -384,8 +267,8 @@ class Pillars:
     The main pillar class where all of the calculations will go.
     """
 
-    def __init__(self,id,densRegion,densDisp,driveB,ionFrac):
-        self.id         = id
+    def __init__(self,densRegion,densDisp,driveB,ionFrac):
+        self.time       = time
         self.densRegion = densRegion
         self.densDisp   = densDisp
         self.driveB     = driveB
@@ -396,8 +279,14 @@ class Pillars:
         self.tff        = tff
         self.tffMean    = tffMean
 
-    def ComputeVirial():
-        pass
+    def ComputeVirial(self):
+        virial = computeVirial(self.densRegion,
+                               self.regionCoordinates,
+                               self.velocityDispersion,
+                               self.time,
+                               self.sliceIndex)
+    def SetId(self,id):
+        self.id = id
 
 
 
@@ -415,7 +304,7 @@ if __name__ == "__main__":
     dt                  = 10    # kyr
     Amin                = 25    # dxdy
     cs                  = 0.28  # km /s, sound-speed for the neutral gas
-    testDataDir         = "./testData/"
+    readDir             = "./testData/"
     writeDir            = "./Data/"
     sThreshold          = 0.25   # density threshold
     globaluniqueID      = {}    # initalise the global ID dictionary
@@ -446,8 +335,7 @@ if __name__ == "__main__":
     # for each piece of data
     for time in times:
 
-        # Initialise a 3D cube for a mask
-        mask3D = np.zeros([200,200,200])
+
 
         # for each slice through the 3D field
         #for sliceIndex in sliceIndexes:
@@ -457,7 +345,7 @@ if __name__ == "__main__":
 
 
         # read in the Data and extract into a np.array
-        dens        = loadObj(testDataDir + "rho_{}".format(time))
+        dens        = loadObj(readDir + "rho_{}".format(time))
 
         # take a slice through (x,y,z=0)
         dens    = dens[:,sliceIndex,:] # g / cm^3
@@ -858,7 +746,6 @@ if __name__ == "__main__":
         print("Iteration {} complete on slice {}.".format(tIter,sliceIndex))
         print("##################################### \n\n")
 
-        #np.save(writeDir + "mask3D_{}".format(time),mask3D,allow_pickle=False)
         # update the time step
         tIter += 1
 
