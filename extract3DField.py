@@ -4,7 +4,7 @@
 
     Title:          Pillar Tracking at a Photoionised Mixing Layer
     Notes:          this script extracts the shock front and saves it in 3D
-    Author:         James Beattie & contributions from Shyam Menon
+    Author:         James Beattie & Shyam Menon
     First Created:  28 / April / 2020
 
 """
@@ -147,6 +147,8 @@ if __name__ == "__main__":
     writeDir            = "./Data/MaskCubes/"   # write directory
     openFactor          = 2                     # the openning factor of the pixels
     windowSize          = 50                    # half the size of the window
+    viz                 = False
+    tIter               = 0
 
     # Initialise a 3D cube for a mask
     mask3D = np.zeros([cubeDim,cubeDim,cubeDim])
@@ -171,8 +173,50 @@ if __name__ == "__main__":
 
             x, y, xMin, xMax, sMask = houghTransform(s,sThreshold)
 
+
+            if viz == True:
+                # Now we have isolated the mixing layer so we can pick out the region in our
+                # simulation to extract the pillars
+                x0  = int(xMin)
+                x1  = int(xMax)
+                y0  = int(y[0])
+                y1  = int(y[-1])
+
+
+                # initalise a new plot for the s map and feature map
+                f, ax   = plt.subplots(1,2,figsize=(9,4),dpi=200)
+                plt.subplots_adjust(left=0.00, bottom=0.05, right=0.95, top=0.95, wspace=-0.05, hspace=0.05)
+                ax[0].imshow(sMask,cmap=plt.cm.plasma)
+                rect = patches.Rectangle((x0,0),x1 - x0, s.shape[0],linewidth=1,edgecolor='r',facecolor='r',alpha=0.2);
+                ax[0].plot((x0 + (xMax - xMin)/2.,x0 + (xMax - xMin)/2.),(0,s.shape[0]), '--r',linewidth=0.5)
+                ax[0].annotate(r"$\xi = s > s_{\text{max}}/2$", xy=(labelDx,labelDy), xycoords = xyCoords,color="yellow",fontsize=fs-2)
+                ax[0].annotate(r"$(\xi \ominus \square ) \oplus \square = $" + " {}".format(openFactor*dx) + r"$\,\text{pc}$", xy=(labelDx,labelDy-0.06), xycoords = 'axes fraction',color="yellow",fontsize=fs-2)
+                ax[0].annotate(r"Hough fit", xy=(labelDx-0.45,labelDy), xycoords = xyCoords,color="blue",fontsize=fs-2)
+                ax[0].annotate(r"$\mathcal{W}_{\Delta x} = $" + " {}".format(np.round(windowSize*2*dx,1)) + r"$\,\text{pc}$", xy=(labelDx-0.45,labelDy-0.06), xycoords = xyCoords,color="red",fontsize=fs-2)
+                ax[0].annotate(r"$\mathcal{A} \geq \mathcal{A}_{\text{min}} = $" + " {}".format(np.round(Amin*dx*dy,3)) + r"$\,\text{pc}^2$", xy=(labelDx,0.03), xycoords = xyCoords,color="yellow",fontsize=fs-2)
+                ax[0].add_patch(rect)
+                ax[0].plot(x,y, '-b')
+                ax[0].set_ylim((s.shape[0], 0))
+                ax[0].set_axis_off()
+
+
             # Store the 2D mask
             mask3D[:,sliceIndex,:] = sMask
 
+            if viz == True:
+                # take the first values for the colourmap bounds
+                if tIter == 0:
+                    vMax = s.max()
+                    vMin = s.min()
+
+                # create the s (slice) map with time annotations
+                plot    = ax[1].imshow(s,cmap=plt.cm.plasma,vmin=vMin,vmax=vMax)
+                ax[1].annotate(r"$t = ${}".format(time) + r"$dt$", xy=(labelDx + 0.275-eps,labelDy-eps), xycoords = xyCoords,color="white",fontsize=fs-2)
+                ax[1].annotate(r"$t = ${}".format(time) + r"$dt$", xy=(labelDx + 0.275,labelDy), xycoords = xyCoords,color="black",fontsize=fs-2)
+                ax[1].set_axis_off()
+                cb = plt.colorbar(plot)
+                cb.set_label(r"$s = \ln(\rho/\rho_0)$",fontsize=16)
+
+        tIter += 1
         # Save
         np.save(writeDir + "mask3D_{}".format(time),mask3D)

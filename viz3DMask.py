@@ -21,7 +21,8 @@ def plot(mask,iter):
     p1 = ax.voxels(mask)#,cmap=plt.cm.plasma,norm=colors.LogNorm(vmin=s.min(),vmax=s.max()))
     #cb = plt.colorbar(p1,ax=ax)
     #cb.set_label(r"$\ln\left(\rho/\rho_0\right)$",fontsize=fs)
-    plt.savefig("test_{}.png".format(iter),dpi=200)
+    saveNum = str(iter).zfill(3)
+    plt.savefig("test_{}.png".format(saveNum),dpi=200)
     plt.close()
 
 # Main script

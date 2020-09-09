@@ -28,6 +28,9 @@ from scipy import fftpack, misc, optimize  # fourier transform
 from scipy.integrate import quad
 from scipy.optimize import curve_fit
 from numpy.linalg import eig, inv
+from skimage.transform import hough_line, hough_line_peaks
+from skimage.morphology import square, opening
+from skimage import filters, measure
 
 # Visualisations
 import matplotlib as mpl
@@ -36,6 +39,8 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib import rc, ticker, colors  # nicer text in matplotlib and custum ticks for cm
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import matplotlib.patheffects as PathEffects
+import matplotlib.patches as patches
+import matplotlib.patches as mpatches
 mpl.rcParams['text.usetex'] = True
 mpl.rcParams['text.latex.preamble'] = [r'\usepackage{amsmath}',r'\usepackage{mathrsfs}',r'\usepackage{amssymb}']
 rc('font', **{'family': 'DejaVu Sans','size':16})

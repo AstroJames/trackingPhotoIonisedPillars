@@ -4,25 +4,19 @@
 
     Title:          Pillar Tracking at a Photoionised Mixing Layer
     Notes:          main file
-    Author:         James Beattie & contributions from Shyam Menon
+    Author:         James Beattie & Shyam Menon
     First Created:  16 / Jan / 2020
 
 """
 
+from header import *
 import py_compile
 py_compile.compile("header.py")
-from header import *
 py_compile.compile("DataHandling.py")
 from DataHandling import *
 py_compile.compile("ReferenceUnits.py")
 from ReferenceUnits import *
 from PhysicalConstantsCGS import *
-from skimage.transform import hough_line, hough_line_peaks
-from skimage.morphology import square, opening
-from skimage import filters, measure
-import matplotlib.patches as patches
-import matplotlib.patches as mpatches
-
 
 # Command Line Arguments
 ############################################################################################################################################
@@ -122,7 +116,7 @@ def ionFractionFilter(time, regionCoords, sliceIndex):
     minr, maxr, minc, maxc = regionCoords
 
     # Read in the ion fraction and extract the region
-    ionX        = loadObj(testDataDir + "ionX_{}".format(time))[:,sliceIndex,:]
+    ionX        = loadObj(readDataDir + "ionX_{}".format(time))[:,sliceIndex,:]
     ionXRegion  = ionX[minr:maxr,minc:maxc]
 
     # Extract ionised region and filter the denisty
@@ -160,9 +154,9 @@ def computeVelocity(dens, time, sliceIndex):
 
     print("Computing the turbulent component of the velocity field.")
     # construct the magnitude of v field
-    vx = loadObj(readDir + "vx_{}".format(time))[:,sliceIndex,:] # cm /s
-    vy = loadObj(readDir + "vy_{}".format(time))[:,sliceIndex,:] # cm /s
-    vz = loadObj(readDir + "vz_{}".format(time))[:,sliceIndex,:] # cm /s
+    vx = loadObj(readDataDir + "vx_{}".format(time))[:,sliceIndex,:] # cm /s
+    vy = loadObj(readDataDir + "vy_{}".format(time))[:,sliceIndex,:] # cm /s
+    vz = loadObj(readDataDir + "vz_{}".format(time))[:,sliceIndex,:] # cm /s
 
     # calculate the centre of mass velocity vector
     vx_cm = sum(sum(vx * dens)) / sum(sum(dens))
@@ -201,7 +195,7 @@ def computeVirial(densRegion, regionCoordinates, velocityDispersion, time, slice
 
 
     # read in the gravitational field
-    phi     = loadObj(testDataDir + "virial_{}".format(time))[:,sliceIndex,:] # ergs
+    phi     = loadObj(readDataDir + "virial_{}".format(time))[:,sliceIndex,:] # ergs
 
 
     # calculate the virial parameter (see Menon et al. 2020; Beattie et al. 2020)
@@ -241,8 +235,8 @@ def computeSFR(virial, sRegion, densRegion, regionMach, mass, tff, tffMean):
 
 
     OUTPUT:
-    SFR     -
-    sCrit   -
+    SFR     - the predicted star formation rate of the region
+    sCrit   - the critical density for stars to collapse.
 
     """
 
@@ -251,7 +245,7 @@ def computeSFR(virial, sRegion, densRegion, regionMach, mass, tff, tffMean):
     sCrit   = np.log( phiX * ( np.pi/5. ) * virial * regionMach**2  )
 
     # compute the s PDF
-    # fit a gaussian
+    # fit a gaussian or Hopkins PDF
     # integrate the gaussian from s_crit to a large vale (infinity)
 
 
@@ -261,18 +255,90 @@ def computeSFR(virial, sRegion, densRegion, regionMach, mass, tff, tffMean):
 
     return SFR, sCrit
 
-class Pillars:
+class PillarRegion:
     """
     DESCRIPTION:
     The main pillar class where all of the calculations will go.
     """
 
-    def __init__(self,densRegion,densDisp,driveB,ionFrac):
-        self.time       = time
-        self.densRegion = densRegion
-        self.densDisp   = densDisp
-        self.driveB     = driveB
-        self.ionFrac    = ionFrac
+    def __init__(self,region,densRegion,sRegion,regionCoords):
+        """
+        DESCRIPTION:
+
+        INPUT:
+
+        OUTPUT:
+
+        """
+        self.time               = time
+        self.region             = region
+        self.sRegion            = sRegion
+        self.densRegion         = densRegion
+        self.regionCoords       = regionCoords
+        self.mass               = sum(sum(self.densRegion))*dx*dy*dz*(Parsec)**3 * (1. / SolarMass)
+        self.area               = region.area*dx*dy
+        self.perimeter          = region.perimeter*dx
+        self.centroids          = region.centroid
+        self.neutralCoords      = []
+        self.ionisationFraction = []
+        self.sigmaS             = []
+        self.velRegion          = []
+        self.id                 = []
+        self.Mach               = []
+        self.bDrive             = []
+        self.tff                = []
+        self.tffMean            = []
+        self.virial             = []
+        self.SFR                = []
+
+
+    def ComputeIonFrac(self):
+        """
+        DESCRIPTION:
+
+        INPUT:
+
+        OUTPUT:
+
+        """
+        neutralCoords, ionisationFraction   = ionFractionFilter(self.time,self.regionCoords)
+        self.neutralCoords                  = neutralCoords
+        self.ionisationFraction             = ionisationFraction
+
+    def ComputeDensVar(sefl):
+        """
+        DESCRIPTION:
+
+        INPUT:
+
+        OUTPUT:
+
+        """
+        if self.neutralCoords == []:
+            self.sigmaS = np.var(self.sRegion)
+        else:
+            self.sigmaS = np.var(self.sRegion[self.neutralCoords])
+
+    def ComputerVelRegion(self,v):
+        """
+        DESCRIPTION:
+
+        INPUT:
+
+        OUTPUT:
+
+        """
+        if self.neutralCoords == []:
+            self.regionVel   = v[self.neutralCoords]
+        else:
+            minr, minc, maxr, maxc = self.region.bbox
+            self.regionVel   = v[minr:maxr,minc:maxc]
+
+        velVar      = self.regionVel.std()
+        self.Mach   = velVar / cs
+
+    def ComputeB(self):
+        self.b    = np.sqrt( ( np.exp(densDispersion) - 1 ) / regionMach**2  )
 
     def ComputeFreeFallTime(self):
         tff, tffMean    = computeFreeFallTime(self.densRegion)
@@ -283,10 +349,11 @@ class Pillars:
         virial = computeVirial(self.densRegion,
                                self.regionCoordinates,
                                self.velocityDispersion,
-                               self.time,
-                               self.sliceIndex)
+                               self.time)
     def SetId(self,id):
         self.id = id
+
+
 
 
 
@@ -304,9 +371,10 @@ if __name__ == "__main__":
     dt                  = 10    # kyr
     Amin                = 25    # dxdy
     cs                  = 0.28  # km /s, sound-speed for the neutral gas
-    readDir             = "./testData/"
+    readDataDir         = "./testData/"
+    readMaskDir         = "./maskData/"
     writeDir            = "./Data/"
-    sThreshold          = 0.25   # density threshold
+    sThreshold          = 0.5   # density threshold
     globaluniqueID      = {}    # initalise the global ID dictionary
     times               = np.arange(50,52)#args['tend'])     # the times to run the code on
     timesArr            = []            # a list for storing the different times for plotting
@@ -340,12 +408,14 @@ if __name__ == "__main__":
         # for each slice through the 3D field
         #for sliceIndex in sliceIndexes:
 
-        print("Starting iteration on file number {}".format(time))
+        print(f"Starting iteration on file number {time}")
         print("#####################################")
 
 
         # read in the Data and extract into a np.array
-        dens        = loadObj(readDir + "rho_{}".format(time))
+        dens        = loadObj(readDataDir + f"rho_{time}")
+        mask        = np.load(readMaskDir + f"mask3D_{time}.npy")
+        mask = mask[:,sliceIndex,:]
 
         # take a slice through (x,y,z=0)
         dens    = dens[:,sliceIndex,:] # g / cm^3
@@ -366,63 +436,35 @@ if __name__ == "__main__":
             plt.show()
 
 
-        # turn the time into the proper time by adding 100.
-        #time        += 100
+        # filter on the densities within the small regions and then create a threshold
+        #sML         = s[:,x0:x1]                    # no longer required
+        #sML_mask    = sML > sML.max()*sThreshold    # no longer required
 
-
-        # Perform Hough transfrom
-        x, y, xMin, xMax, sMask = houghTransform(s,sThreshold)
-
-
-        # Now we have isolated the mixing layer so we can pick out the region in our
-        # simulation to extract the pillars
-        x0  = int(xMin)
-        x1  = int(xMax)
-        y0  = int(y[0])
-        y1  = int(y[-1])
-
-
-        # initalise a new plot for the s map and feature map
         f, ax   = plt.subplots(1,2,figsize=(9,4),dpi=200)
         plt.subplots_adjust(left=0.00, bottom=0.05, right=0.95, top=0.95, wspace=-0.05, hspace=0.05)
-        ax[0].imshow(sMask,cmap=plt.cm.plasma)
-        rect = patches.Rectangle((x0,0),x1 - x0, s.shape[0],linewidth=1,edgecolor='r',facecolor='r',alpha=0.2);
-        ax[0].plot((x0 + (xMax - xMin)/2.,x0 + (xMax - xMin)/2.),(0,s.shape[0]), '--r',linewidth=0.5)
+        ax[0].imshow(mask,cmap=plt.cm.plasma)
+        #rect = patches.Rectangle((x0,0),x1 - x0, s.shape[0],linewidth=1,edgecolor='r',facecolor='r',alpha=0.2);
+        #ax[0].plot((x0 + (xMax - xMin)/2.,x0 + (xMax - xMin)/2.),(0,s.shape[0]), '--r',linewidth=0.5)
         ax[0].annotate(r"$\xi = s > s_{\text{max}}/2$", xy=(labelDx,labelDy), xycoords = xyCoords,color="yellow",fontsize=fs-2)
         ax[0].annotate(r"$(\xi \ominus \square ) \oplus \square = $" + " {}".format(openFactor*dx) + r"$\,\text{pc}$", xy=(labelDx,labelDy-0.06), xycoords = 'axes fraction',color="yellow",fontsize=fs-2)
         ax[0].annotate(r"Hough fit", xy=(labelDx-0.45,labelDy), xycoords = xyCoords,color="blue",fontsize=fs-2)
         ax[0].annotate(r"$\mathcal{W}_{\Delta x} = $" + " {}".format(np.round(windowSize*2*dx,1)) + r"$\,\text{pc}$", xy=(labelDx-0.45,labelDy-0.06), xycoords = xyCoords,color="red",fontsize=fs-2)
         ax[0].annotate(r"$\mathcal{A} \geq \mathcal{A}_{\text{min}} = $" + " {}".format(np.round(Amin*dx*dy,3)) + r"$\,\text{pc}^2$", xy=(labelDx,0.03), xycoords = xyCoords,color="yellow",fontsize=fs-2)
-        ax[0].add_patch(rect)
-        ax[0].plot(x,y, '-b')
+        #ax[0].add_patch(rect)
+        #ax[0].plot(x,y, '-b')
         ax[0].set_ylim((s.shape[0], 0))
         ax[0].set_axis_off()
 
-
-        # Store the 2D mask
-        mask3D[:,sliceIndex,:] = sMask
-
-
-        # filter on the densities within the small regions and then create a threshold
-        sML         = s[:,x0:x1]
-        sML_mask    = sML > sML.max()*sThreshold
-        sML_mask    = np.pad(sML_mask,((0,0),(x0,s.shape[1]-x1)),mode='constant')
-        allLabels   = labelCreator(sML_mask,openFactor)
-
-
-        # take the first values for the colourmap bounds
-        if tIter == 0:
-            vMax = s.max()
-            vMin = s.min()
+        #sML_mask    = np.pad(sML_mask,((0,0),(x0,s.shape[1]-x1)),mode='constant') #?
+        allLabels   = labelCreator(mask,openFactor)
 
         # create the s (slice) map with time annotations
-        plot    = ax[1].imshow(s,cmap=plt.cm.plasma,vmin=vMin,vmax=vMax)
+        plot    = ax[1].imshow(s,cmap=plt.cm.plasma)#,vmin=vMin,vmax=vMax)
         ax[1].annotate(r"$t = ${}".format(time) + r"$dt$", xy=(labelDx + 0.275-eps,labelDy-eps), xycoords = xyCoords,color="white",fontsize=fs-2)
         ax[1].annotate(r"$t = ${}".format(time) + r"$dt$", xy=(labelDx + 0.275,labelDy), xycoords = xyCoords,color="black",fontsize=fs-2)
         ax[1].set_axis_off()
         cb = plt.colorbar(plot)
         cb.set_label(r"$s = \ln(\rho/\rho_0)$",fontsize=16)
-
 
         localuniqueID   = {}    # initialise a unique ID for each centroid, for this timestep
         statsPerID      = {}    # initialise a dictionary for the stats, for each region
@@ -454,6 +496,12 @@ if __name__ == "__main__":
             # all of the region statistics are)
             ############################################################
 
+            #TODO: reshape 2D array into a 3D array with dimensions 1 in the z direction,
+            """
+            > define minz:maxz that is default 0:0 for the 2D problem
+            >
+            """
+
             ## DENSITY REGIONS ##
             # define the the s / dens region
             regionCoords    = (minr,maxr,minc,maxc)
@@ -467,20 +515,13 @@ if __name__ == "__main__":
             if args['ionX'] == True:
                 neutralCoords, ionisationFraction   = ionFractionFilter(time,regionCoords,sliceIndex)
                 densDispersion                      = np.var(sRegion[neutralCoords])
-
-                #BUG TEST#
-                if np.isnan(densDispersion) == True:
-                    print("Density dispersion is nan")
-                    continue
-
-
             else:
                 densDispersion  = np.var(sRegion)
 
-                #BUG TEST#
-                if np.isnan(densDispersion) == True:
-                    print("Density dispersion is nan")
-                    continue
+            #BUG TEST#
+            if np.isnan(densDispersion) == True:
+                print("Density dispersion is nan")
+                continue
 
 
             ## MASS ##
@@ -526,6 +567,9 @@ if __name__ == "__main__":
 
             ## CENTROID COORDINATES ##
             # calculate the (mass) centroids
+            """
+            add a centroid z
+            """
             centroidY ,centroidX = region.centroid
 
 
@@ -701,7 +745,7 @@ if __name__ == "__main__":
 
 
         # print how many distinct regions there are
-        print("There has been {} distinct structures identified.".format(regionCounter))
+        print("There have been {} distinct structures identified.".format(regionCounter))
 
 
         # a counter for recording the elements that are being deleted
